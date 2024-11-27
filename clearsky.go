@@ -12,5 +12,5 @@ func main() {
 		os.Exit(1)
 	}
 
-	return
+	// return
 }
