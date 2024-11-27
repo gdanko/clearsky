@@ -56,6 +56,19 @@ type BlueSkyUser struct {
 	Posts          int    `json:"postsCount"`
 }
 
+// ClearSky user block
+type ClearSkyUserObject struct {
+	AvatarUrl        string `json:"avatar_url"`
+	HandleIdentifier string `json:"handle_identifier"`
+	Handle           string `json:"identifier"`
+	PDS              string `json:"pds"`
+	UserUrl          string `json:"user_url"`
+}
+
+type ClearSkyUser struct {
+	Data ClearSkyUserObject `json:"data"`
+}
+
 // Concurrent worker job
 type Job struct {
 	URL string

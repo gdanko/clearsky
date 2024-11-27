@@ -6,6 +6,7 @@ import (
 
 var (
 	accountName       string
+	debugFlag         bool
 	err               error
 	showBlockingUsers bool
 	// showListNames     bool

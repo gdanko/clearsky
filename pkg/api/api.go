@@ -47,18 +47,18 @@ func worker(requester *insrequester.Request, jobs <-chan globals.Job, results ch
 	}
 }
 
-func ExpandBlockListUsers(blockList *[]globals.BlockingUser) (err error) {
+func ExpandBlockListUsers(blockList *[]globals.BlockingUser, batchOperationTimeout int) (err error) {
 	var (
-		blockingUser   globals.BlockingUser
-		blueSkyUser    globals.BlueSkyUser
-		url            string
-		requester      *insrequester.Request
-		requestTimeout = 30
-		workerCount    = 100
-		wg             sync.WaitGroup
+		blockingUser globals.BlockingUser
+		// userObject   globals.BlueSkyUser
+		userObject  globals.ClearSkyUser
+		url         string
+		requester   *insrequester.Request
+		workerCount = 100
+		wg          sync.WaitGroup
 	)
 	requester = insrequester.NewRequester().Load()
-	requester.WithTimeout(time.Duration(requestTimeout) * time.Second)
+	requester.WithTimeout(time.Duration(batchOperationTimeout) * time.Second)
 	jobs := make(chan globals.Job, len(*blockList))
 	results := make(chan *http.Response, len(*blockList))
 
@@ -68,7 +68,8 @@ func ExpandBlockListUsers(blockList *[]globals.BlockingUser) (err error) {
 
 	wg.Add(len(*blockList))
 	for _, blockingUser = range *blockList {
-		url = fmt.Sprintf("https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=%s", (blockingUser.DID))
+		// url = fmt.Sprintf("https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=%s", (blockingUser.DID))
+		url = fmt.Sprintf("https://api.clearsky.services/api/v1/anon/get-handle/%s", blockingUser.DID)
 		jobs <- globals.Job{URL: url}
 	}
 	close(jobs)
@@ -84,18 +85,19 @@ func ExpandBlockListUsers(blockList *[]globals.BlockingUser) (err error) {
 				os.Exit(0)
 			}
 
-			blueSkyUser = globals.BlueSkyUser{}
-			err = json.Unmarshal(body, &blueSkyUser)
+			// blueSkyUser = globals.BlueSkyUser{}
+			// err = json.Unmarshal(body, &blueSkyUser)
+			userObject = globals.ClearSkyUser{}
 			if err != nil {
 				fmt.Println(err)
 			}
-			(*blockList)[i].Username = blueSkyUser.Handle
-			(*blockList)[i].DisplayName = blueSkyUser.DisplayName
-			(*blockList)[i].Description = blueSkyUser.Description
-			(*blockList)[i].Banner = blueSkyUser.Banner
-			(*blockList)[i].FollowsCount = blueSkyUser.FollowsCount
-			(*blockList)[i].FollowersCount = blueSkyUser.FollowersCount
-			(*blockList)[i].Posts = blueSkyUser.Posts
+			(*blockList)[i].Username = userObject.Data.Handle
+			// (*blockList)[i].DisplayName = blueSkyUser.DisplayName
+			// (*blockList)[i].Description = blueSkyUser.Description
+			// (*blockList)[i].Banner = blueSkyUser.Banner
+			// (*blockList)[i].FollowsCount = blueSkyUser.FollowsCount
+			// (*blockList)[i].FollowersCount = blueSkyUser.FollowersCount
+			// (*blockList)[i].Posts = blueSkyUser.Posts
 		} else {
 			fmt.Println("Ouch! nil response")
 		}

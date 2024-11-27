@@ -37,18 +37,17 @@ func blocksPreRunCmd(cmd *cobra.Command, args []string) {
 
 func blocksRunCmd(cmd *cobra.Command, args []string) {
 	var (
-		blockListOutput globals.BlockListOutput
-		blockListPage   globals.BlockListPage
-		// blockingUser    globals.BlockingUser
-		body               []byte
-		chunk              []globals.BlockingUser
-		chunkSize          = 20
-		divided            [][]globals.BlockingUser
-		i                  int
-		maxPages           = 5
-		newBlockListOutput globals.BlockListOutput
-		// sleepSeconds       = 10
-		url string
+		batchOperationTimeout = 60
+		blockListOutput       globals.BlockListOutput
+		blockListPage         globals.BlockListPage
+		body                  []byte
+		chunk                 []globals.BlockingUser
+		chunkSize             = 35
+		divided               [][]globals.BlockingUser
+		i                     int
+		maxPages              = 1000
+		newBlockListOutput    globals.BlockListOutput
+		url                   string
 	)
 	url = fmt.Sprintf("https://api.clearsky.services/api/v1/anon/single-blocklist/%s", userId)
 	body, err = api.FetchUrl(url)
@@ -89,19 +88,20 @@ func blocksRunCmd(cmd *cobra.Command, args []string) {
 	}
 
 	// https://medium.com/insiderengineering/concurrent-http-requests-in-golang-best-practices-and-techniques-f667e5a19dea
-	blockListOutput.Items = blockListOutput.Items[0:100]
+	// blockListOutput.Items = blockListOutput.Items[0:100]
+	fmt.Println(len(blockListOutput.Items))
 	if showBlockingUsers {
 		divided = util.SliceChunker(blockListOutput.Items, chunkSize)
 		for i, chunk = range divided {
 			fmt.Printf("Chunk %d\n", i)
-			api.ExpandBlockListUsers(&chunk)
+			api.ExpandBlockListUsers(&chunk, batchOperationTimeout)
 			newBlockListOutput.Items = append(newBlockListOutput.Items, chunk...)
 			// fmt.Printf("Sleeping for %d seconds\n", sleepSeconds)
 			// time.Sleep(time.Duration(sleepSeconds) * time.Second)
 		}
 	}
-
-	fmt.Printf("%s is currently being blocked by %d users\n", accountName, newBlockListOutput.Count)
-	pretty.Println(newBlockListOutput.Items)
 	newBlockListOutput.Count = len(newBlockListOutput.Items)
+	pretty.Println(newBlockListOutput.Items)
+	fmt.Printf("%s is currently being blocked by %d users\n", accountName, newBlockListOutput.Count)
+
 }
