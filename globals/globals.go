@@ -4,6 +4,19 @@ import (
 	"sync"
 )
 
+// User's did
+type UserData struct {
+	AvatarUrl     string `json:"avatar_url"`
+	DidIdentifier string `json:"did_identifier"`
+	Identifier    string `json:"identifier"`
+	PDS           string `json:"pds"`
+	UserUrl       string `json:"user_url"`
+}
+
+type UserDid struct {
+	Data UserData `json:"data"`
+}
+
 // Block list structs
 type BlockingUser struct {
 	BlockedDate    string `json:"blocked_date"`
@@ -51,6 +64,7 @@ var (
 	mu              sync.RWMutex
 	blockListOutput BlockListOutput
 	blueSkyUser     BlueSkyUser
+	userDid         UserDid
 )
 
 // set and get pairs
@@ -73,9 +87,22 @@ func SetBlueSkyUser(x BlueSkyUser) {
 	mu.Unlock()
 }
 
-func GeBlueSkyUser() (x BlueSkyUser) {
+func GetBlueSkyUser() (x BlueSkyUser) {
 	mu.Lock()
 	x = blueSkyUser
+	mu.Unlock()
+	return x
+}
+
+func SetUserData(x UserDid) {
+	mu.Lock()
+	userDid = x
+	mu.Unlock()
+}
+
+func GetUserData() (x UserDid) {
+	mu.Lock()
+	x = userDid
 	mu.Unlock()
 	return x
 }
