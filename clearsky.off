@@ -1,0 +1,247 @@
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+
+	"net/http"
+
+	"github.com/jcelliott/lumber"
+	flags "github.com/jessevdk/go-flags"
+)
+
+const VERSION = "0.1.0"
+
+var (
+	logger *lumber.ConsoleLogger
+)
+
+type UserData struct {
+	AvatarUrl     string `json:"avatar_url"`
+	DidIdentifier string `json:"did_identifier"`
+	Identifier    string `json:"identifier"`
+	PDS           string `json:"pds"`
+	UserUrl       string `json:"user_url"`
+}
+
+// Get user's did
+type GetDid struct {
+	Data UserData `json:"data"`
+}
+
+type Options struct {
+	Account string `short:"a" long:"account" description:"Specify the Bluesky account name."`
+	Blocks  bool   `short:"b" long:"blocks" description:"Show a list of users blocking you."`
+	Lists   bool   `short:"l" long:"lists" description:"Show a list of lists your account is a member of."`
+}
+
+// Block list structs
+type BlockingUser struct {
+	BlockedDate    string `json:"blocked_date"`
+	DID            string `json:"did"`
+	Status         string `json:"status"`
+	Username       string `json:"username"`
+	DisplayName    string `json:"displayName"`
+	Description    string `json:"description"`
+	Banner         string `json:"banner"`
+	FollowsCount   int    `json:"followsCount"`
+	FollowersCount int    `json:"followersCount"`
+	Posts          int    `json:"postsCount"`
+}
+
+type BlockingUsers struct {
+	Blocklist []BlockingUser `json:"blocklist"`
+	ItemCount int
+	Pages     int `json:"pages"`
+}
+
+type BlockListPage struct {
+	Data     BlockingUsers `json:"data"`
+	Identity string        `json:"identity"`
+	Status   bool          `json:"status"`
+}
+
+type BlockListOutput struct {
+	Items []BlockingUser `json:"items"`
+	Count int            `json:"count"`
+}
+
+// BlueSky user block
+type BlueSkyUser struct {
+	DID            string `json:"did"`
+	Handle         string `json:"handle"`
+	DisplayName    string `json:"displayName"`
+	Description    string `json:"description"`
+	Banner         string `json:"banner"`
+	FollowsCount   int    `json:"followsCount"`
+	FollowersCount int    `json:"followersCount"`
+	Posts          int    `json:"postsCount"`
+}
+
+type ClearSkyUser struct {
+	DID    string `json:"did_identifier"`
+	Handle string `json:"identifier"`
+}
+
+func FetchUrl(url string) (body []byte, err error) {
+	// fmt.Printf("Fetching %s\n", url)
+	resp, err := http.Get(url)
+	if err != nil {
+		return []byte{}, err
+	}
+	defer resp.Body.Close()
+	body, err = io.ReadAll(resp.Body)
+	if err != nil {
+		return []byte{}, err
+	}
+	return body, nil
+}
+
+func GetUserID(accountName string) (userId string, err error) {
+	var (
+		body []byte
+		url  string
+	)
+	url = fmt.Sprintf("https://api.clearsky.services/api/v1/anon/get-did/%s", accountName)
+	body, err = FetchUrl(url)
+	if err != nil {
+		return userId, err
+	}
+
+	getDid := GetDid{}
+	err = json.Unmarshal(body, &getDid)
+	if err != nil {
+		return userId, err
+	}
+	userId = getDid.Data.DidIdentifier
+
+	return userId, nil
+}
+
+func GetBlockList(userId string) (blockListOutput BlockListOutput, err error) {
+	var (
+		blockListPage BlockListPage
+		body          []byte
+		url           string
+	)
+	url = fmt.Sprintf("https://api.clearsky.services/api/v1/anon/single-blocklist/%s", userId)
+	body, err = FetchUrl(url)
+	if err != nil {
+		return BlockListOutput{}, err
+	}
+
+	blockListPage = BlockListPage{}
+	err = json.Unmarshal(body, &blockListPage)
+	if err != nil {
+		return BlockListOutput{}, err
+	}
+	if len(blockListPage.Data.Blocklist) > 0 {
+		for _, item := range blockListPage.Data.Blocklist {
+			blockListOutput.Items = append(blockListOutput.Items, item)
+		}
+	} else {
+		return BlockListOutput{}, err
+	}
+
+	// Now we cycle through /2, /3, etc until there are no more
+	if len(blockListOutput.Items) >= 100 {
+		for i := 2; i <= 1000; i++ {
+			url = fmt.Sprintf("https://api.clearsky.services/api/v1/anon/single-blocklist/%s/%d", userId, i)
+			body, err = FetchUrl(url)
+			if err != nil {
+				return BlockListOutput{}, err
+			}
+			blockListPage = BlockListPage{}
+			err = json.Unmarshal(body, &blockListPage)
+			if err != nil {
+				return BlockListOutput{}, err
+			}
+			if len(blockListPage.Data.Blocklist) > 0 {
+				for _, item := range blockListPage.Data.Blocklist {
+					blockListOutput.Items = append(blockListOutput.Items, item)
+				}
+			} else {
+				break
+			}
+		}
+	}
+	blockListOutput.Count = len(blockListOutput.Items)
+
+	return blockListOutput, nil
+}
+
+func ExpandBlockListUsers(blockList *BlockListOutput) (err error) {
+	var (
+		body []byte
+		did  string
+		url  string
+	)
+	for i, blockListItem := range blockList.Items {
+		did = blockListItem.DID
+		url = fmt.Sprintf("https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=%s", did)
+		body, err = FetchUrl(url)
+		if err != nil {
+			return err
+		}
+
+		blueSkyUser := BlueSkyUser{}
+		err = json.Unmarshal(body, &blueSkyUser)
+		if err != nil {
+			return err
+		}
+		blockList.Items[i].Username = blueSkyUser.Handle
+		blockList.Items[i].DisplayName = blueSkyUser.DisplayName
+		blockList.Items[i].Description = blueSkyUser.Description
+		blockList.Items[i].Banner = blueSkyUser.Banner
+		blockList.Items[i].FollowsCount = blueSkyUser.FollowsCount
+		blockList.Items[i].FollowersCount = blueSkyUser.FollowersCount
+		blockList.Items[i].Posts = blueSkyUser.Posts
+	}
+	return nil
+}
+
+func main() {
+	logger = lumber.NewConsoleLogger(lumber.INFO)
+
+	opts := Options{}
+
+	parser := flags.NewParser(&opts, flags.Default)
+	if _, err := parser.Parse(); err != nil {
+		if flagsErr, ok := err.(*flags.Error); ok && flagsErr.Type == flags.ErrHelp {
+			os.Exit(0)
+		} else {
+			logger.Error(err.Error())
+			os.Exit(1)
+		}
+	}
+
+	if opts.Account == "" {
+		fmt.Println("The flag --account is required")
+		os.Exit(1)
+	}
+
+	if !opts.Blocks && !opts.Lists {
+		fmt.Println("You must specify either --blocks or --lists")
+		os.Exit(1)
+	}
+
+	userId, err := GetUserID(opts.Account)
+	if err != nil {
+		panic(err)
+	}
+
+	blockList, err := GetBlockList(userId)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("%s is currently being blocked by %d users\n", opts.Account, len(blockList.Items))
+
+	// err = ExpandBlockListUsers(&blockList)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// pretty.Print(blockList)
+}
