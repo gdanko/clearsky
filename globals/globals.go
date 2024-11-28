@@ -1,7 +1,5 @@
 package globals
 
-import "sync"
-
 // User count data
 type CountBlock struct {
 	DisplayName string `json:"displayName"`
@@ -91,22 +89,4 @@ type ClearSkyUser struct {
 // Concurrent worker job
 type Job struct {
 	URL string
-}
-
-var (
-	debugFlag bool
-	mu        sync.RWMutex
-)
-
-func SetDebugFlag(x bool) {
-	mu.Lock()
-	debugFlag = x
-	mu.Unlock()
-}
-
-func GetDebugFlag() (x bool) {
-	mu.Lock()
-	x = debugFlag
-	mu.Unlock()
-	return x
 }
