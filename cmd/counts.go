@@ -36,7 +36,7 @@ func countsRunCmd(cmd *cobra.Command, args []string) {
 	)
 
 	url = "https://api.clearsky.services/api/v1/anon/total-users"
-	body, err = api.FetchUrl(url)
+	body, err = api.FetchUrl(url, logger)
 	if err != nil {
 		panic(err)
 	}

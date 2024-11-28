@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gdanko/clearsky/globals"
 	"github.com/gdanko/clearsky/pkg/api"
+	"github.com/gdanko/clearsky/util"
 	"github.com/spf13/cobra"
 )
 
@@ -26,9 +26,11 @@ func init() {
 }
 
 func listsPreRunCmd(cmd *cobra.Command, args []string) error {
-	globals.SetDebugFlag(debugFlag)
+	logLevel = logLevelMap[logLevelStr]
+	logger = util.ConfigureLogger(logLevel, nocolorFlag)
+
 	if accountName != "" {
-		displayName, userId, err = api.GetUserID(accountName)
+		displayName, userId, err = api.GetUserID(accountName, logger)
 		if err != nil {
 			return err
 		}

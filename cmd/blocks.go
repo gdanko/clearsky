@@ -28,9 +28,11 @@ func init() {
 }
 
 func blocksPreRunCmd(cmd *cobra.Command, args []string) error {
-	globals.SetDebugFlag(debugFlag)
+	logLevel = logLevelMap[logLevelStr]
+	logger = util.ConfigureLogger(logLevel, nocolorFlag)
+
 	if accountName != "" {
-		displayName, userId, err = api.GetUserID(accountName)
+		displayName, userId, err = api.GetUserID(accountName, logger)
 		if err != nil {
 			return err
 		}
@@ -51,7 +53,7 @@ func blocksRunCmd(cmd *cobra.Command, args []string) error {
 		totalRecords       int
 		newBlockListOutput globals.BlockListOutput
 	)
-	blockListOutput, err = api.GetBlockingUsersList(userId)
+	blockListOutput, err = api.GetBlockingUsersList(userId, logger)
 	if err != nil {
 		return err
 	}
@@ -71,7 +73,7 @@ func blocksRunCmd(cmd *cobra.Command, args []string) error {
 		tab.Header("name").SetAlign(alignment)
 		divided = util.SliceChunker(blockListOutput.Items, batchChunkSize)
 		for _, chunk = range divided {
-			api.ExpandBlockListUsers(&chunk, batchOperationTimeout)
+			api.ExpandBlockListUsers(&chunk, batchOperationTimeout, logger)
 			newBlockListOutput.Items = append(newBlockListOutput.Items, chunk...)
 		}
 		for _, item := range newBlockListOutput.Items {
