@@ -1,18 +1,14 @@
 package api
 
 import (
-	"fmt"
 	"io"
 	"net/http"
 
-	"github.com/gdanko/clearsky/globals"
+	"github.com/sirupsen/logrus"
 )
 
-func FetchUrl(url string) (body []byte, err error) {
-	if globals.GetDebugFlag() {
-		fmt.Println(url)
-	}
-
+func FetchUrl(url string, logger *logrus.Logger) (body []byte, err error) {
+	logger.Debug(url)
 	resp, err := http.Get(url)
 	if err != nil {
 		return []byte{}, err
