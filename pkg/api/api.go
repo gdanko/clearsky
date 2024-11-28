@@ -9,35 +9,53 @@ import (
 	"sync"
 	"time"
 
+	"github.com/forPelevin/gomoji"
 	"github.com/gdanko/clearsky/globals"
 	"github.com/useinsider/go-pkg/insrequester"
 	// "golang.org/x/sync/errgroup"
 )
 
-func GetUserID(accountName string) (userId string, err error) {
+func GetUserID(accountName string) (displayName string, userId string, err error) {
 	var (
 		body []byte
 		url  string
 	)
+	// Get userId from handle
 	url = fmt.Sprintf("https://api.clearsky.services/api/v1/anon/get-did/%s", accountName)
 	body, err = FetchUrl(url)
 	if err != nil {
-		return userId, err
+		return displayName, userId, err
 	}
 
 	getDid := globals.UserDid{}
 	err = json.Unmarshal(body, &getDid)
 	if err != nil {
-		return userId, err
+		return displayName, userId, err
 	}
 	userId = getDid.Data.DidIdentifier
 
-	return userId, nil
+	// Get displayName from userId
+	url = fmt.Sprintf("https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=%s", (userId))
+	body, err = FetchUrl(url)
+	if err != nil {
+		return displayName, userId, err
+	}
+
+	userInfo := globals.BlueSkyUser{}
+	err = json.Unmarshal(body, &userInfo)
+	if err != nil {
+		return displayName, userId, err
+	}
+	displayName = userInfo.DisplayName
+
+	return displayName, userId, nil
 }
 
 func worker(requester *insrequester.Request, jobs <-chan globals.Job, results chan<- *http.Response, wg *sync.WaitGroup) {
 	for job := range jobs {
-		fmt.Println(job.URL)
+		if globals.GetDebugFlag() {
+			fmt.Println(job.URL)
+		}
 		res, err := requester.Get(insrequester.RequestEntity{Endpoint: job.URL})
 		if err != nil {
 			fmt.Println(err)
@@ -47,15 +65,64 @@ func worker(requester *insrequester.Request, jobs <-chan globals.Job, results ch
 	}
 }
 
+func GetBlockingUsersList(userId string) (blockListOutput globals.BlockListOutput, err error) {
+	var (
+		blockListPage globals.BlockListPage
+		body          []byte
+		maxPages      = 1000
+		url           string
+	)
+
+	// https://api.clearsky.services/api/v1/anon/single-blocklist/did:plc:ccskhvd467uwdrxpwaudnbni
+	url = fmt.Sprintf("https://api.clearsky.services/api/v1/anon/single-blocklist/%s", userId)
+	body, err = FetchUrl(url)
+	if err != nil {
+		return globals.BlockListOutput{}, err
+	}
+
+	blockListPage = globals.BlockListPage{}
+	err = json.Unmarshal(body, &blockListPage)
+	if err != nil {
+		return globals.BlockListOutput{}, err
+	}
+	if len(blockListPage.Data.Blocklist) > 0 {
+		blockListOutput.Items = append(blockListOutput.Items, blockListPage.Data.Blocklist...)
+	} else {
+		return globals.BlockListOutput{}, err
+	}
+
+	// Now we cycle through /2, /3, etc until there are no more
+	// https://api.clearsky.services/api/v1/anon/single-blocklist/did:plc:ccskhvd467uwdrxpwaudnbni/2
+	if len(blockListOutput.Items) >= 100 {
+		for i := 2; i <= maxPages; i++ {
+			url = fmt.Sprintf("https://api.clearsky.services/api/v1/anon/single-blocklist/%s/%d", userId, i)
+			body, err = FetchUrl(url)
+			if err != nil {
+				return globals.BlockListOutput{}, err
+			}
+			blockListPage = globals.BlockListPage{}
+			err = json.Unmarshal(body, &blockListPage)
+			if err != nil {
+				panic(err)
+			}
+			if len(blockListPage.Data.Blocklist) > 0 {
+				blockListOutput.Items = append(blockListOutput.Items, blockListPage.Data.Blocklist...)
+			} else {
+				break
+			}
+		}
+	}
+	return blockListOutput, nil
+}
+
 func ExpandBlockListUsers(blockList *[]globals.BlockingUser, batchOperationTimeout int) (err error) {
 	var (
 		blockingUser globals.BlockingUser
-		// userObject   globals.BlueSkyUser
-		userObject  globals.ClearSkyUser
-		url         string
-		requester   *insrequester.Request
-		workerCount = 100
-		wg          sync.WaitGroup
+		userObject   globals.BlueSkyUser
+		url          string
+		requester    *insrequester.Request
+		workerCount  = 100
+		wg           sync.WaitGroup
 	)
 	requester = insrequester.NewRequester().Load()
 	requester.WithTimeout(time.Duration(batchOperationTimeout) * time.Second)
@@ -68,8 +135,7 @@ func ExpandBlockListUsers(blockList *[]globals.BlockingUser, batchOperationTimeo
 
 	wg.Add(len(*blockList))
 	for _, blockingUser = range *blockList {
-		// url = fmt.Sprintf("https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=%s", (blockingUser.DID))
-		url = fmt.Sprintf("https://api.clearsky.services/api/v1/anon/get-handle/%s", blockingUser.DID)
+		url = fmt.Sprintf("https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=%s", (blockingUser.DID))
 		jobs <- globals.Job{URL: url}
 	}
 	close(jobs)
@@ -85,19 +151,18 @@ func ExpandBlockListUsers(blockList *[]globals.BlockingUser, batchOperationTimeo
 				os.Exit(0)
 			}
 
-			// blueSkyUser = globals.BlueSkyUser{}
-			// err = json.Unmarshal(body, &blueSkyUser)
-			userObject = globals.ClearSkyUser{}
+			userObject = globals.BlueSkyUser{}
+			err = json.Unmarshal(body, &userObject)
 			if err != nil {
-				fmt.Println(err)
+				panic(err)
 			}
-			(*blockList)[i].Username = userObject.Data.Handle
-			// (*blockList)[i].DisplayName = blueSkyUser.DisplayName
-			// (*blockList)[i].Description = blueSkyUser.Description
-			// (*blockList)[i].Banner = blueSkyUser.Banner
-			// (*blockList)[i].FollowsCount = blueSkyUser.FollowsCount
-			// (*blockList)[i].FollowersCount = blueSkyUser.FollowersCount
-			// (*blockList)[i].Posts = blueSkyUser.Posts
+			(*blockList)[i].Username = userObject.Handle
+			(*blockList)[i].DisplayName = gomoji.RemoveEmojis(userObject.DisplayName)
+			(*blockList)[i].Description = userObject.Description
+			(*blockList)[i].Banner = userObject.Banner
+			(*blockList)[i].FollowsCount = userObject.FollowsCount
+			(*blockList)[i].FollowersCount = userObject.FollowersCount
+			(*blockList)[i].Posts = userObject.Posts
 		} else {
 			fmt.Println("Ouch! nil response")
 		}
