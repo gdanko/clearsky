@@ -11,18 +11,19 @@ import (
 
 	"github.com/forPelevin/gomoji"
 	"github.com/gdanko/clearsky/globals"
+	"github.com/sirupsen/logrus"
 	"github.com/useinsider/go-pkg/insrequester"
 	// "golang.org/x/sync/errgroup"
 )
 
-func GetUserID(accountName string) (displayName string, userId string, err error) {
+func GetUserID(accountName string, logger *logrus.Logger) (displayName string, userId string, err error) {
 	var (
 		body []byte
 		url  string
 	)
 	// Get userId from handle
 	url = fmt.Sprintf("https://api.clearsky.services/api/v1/anon/get-did/%s", accountName)
-	body, err = FetchUrl(url)
+	body, err = FetchUrl(url, logger)
 	if err != nil {
 		return displayName, userId, err
 	}
@@ -36,7 +37,7 @@ func GetUserID(accountName string) (displayName string, userId string, err error
 
 	// Get displayName from userId
 	url = fmt.Sprintf("https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=%s", (userId))
-	body, err = FetchUrl(url)
+	body, err = FetchUrl(url, logger)
 	if err != nil {
 		return displayName, userId, err
 	}
@@ -51,11 +52,9 @@ func GetUserID(accountName string) (displayName string, userId string, err error
 	return displayName, userId, nil
 }
 
-func worker(requester *insrequester.Request, jobs <-chan globals.Job, results chan<- *http.Response, wg *sync.WaitGroup) {
+func worker(requester *insrequester.Request, jobs <-chan globals.Job, results chan<- *http.Response, wg *sync.WaitGroup, logger *logrus.Logger) {
 	for job := range jobs {
-		if globals.GetDebugFlag() {
-			fmt.Println(job.URL)
-		}
+		logger.Debug(job.URL)
 		res, err := requester.Get(insrequester.RequestEntity{Endpoint: job.URL})
 		if err != nil {
 			fmt.Println(err)
@@ -65,7 +64,7 @@ func worker(requester *insrequester.Request, jobs <-chan globals.Job, results ch
 	}
 }
 
-func GetBlockingUsersList(userId string) (blockListOutput globals.BlockListOutput, err error) {
+func GetBlockingUsersList(userId string, logger *logrus.Logger) (blockListOutput globals.BlockListOutput, err error) {
 	var (
 		blockListPage globals.BlockListPage
 		body          []byte
@@ -75,7 +74,7 @@ func GetBlockingUsersList(userId string) (blockListOutput globals.BlockListOutpu
 
 	// https://api.clearsky.services/api/v1/anon/single-blocklist/did:plc:ccskhvd467uwdrxpwaudnbni
 	url = fmt.Sprintf("https://api.clearsky.services/api/v1/anon/single-blocklist/%s", userId)
-	body, err = FetchUrl(url)
+	body, err = FetchUrl(url, logger)
 	if err != nil {
 		return globals.BlockListOutput{}, err
 	}
@@ -96,7 +95,7 @@ func GetBlockingUsersList(userId string) (blockListOutput globals.BlockListOutpu
 	if len(blockListOutput.Items) >= 100 {
 		for i := 2; i <= maxPages; i++ {
 			url = fmt.Sprintf("https://api.clearsky.services/api/v1/anon/single-blocklist/%s/%d", userId, i)
-			body, err = FetchUrl(url)
+			body, err = FetchUrl(url, logger)
 			if err != nil {
 				return globals.BlockListOutput{}, err
 			}
@@ -115,7 +114,7 @@ func GetBlockingUsersList(userId string) (blockListOutput globals.BlockListOutpu
 	return blockListOutput, nil
 }
 
-func ExpandBlockListUsers(blockList *[]globals.BlockingUser, batchOperationTimeout int) (err error) {
+func ExpandBlockListUsers(blockList *[]globals.BlockingUser, batchOperationTimeout int, logger *logrus.Logger) (err error) {
 	var (
 		blockingUser globals.BlockingUser
 		userObject   globals.BlueSkyUser
@@ -130,7 +129,7 @@ func ExpandBlockListUsers(blockList *[]globals.BlockingUser, batchOperationTimeo
 	results := make(chan *http.Response, len(*blockList))
 
 	for w := 0; w < workerCount; w++ {
-		go worker(requester, jobs, results, &wg)
+		go worker(requester, jobs, results, &wg, logger)
 	}
 
 	wg.Add(len(*blockList))
