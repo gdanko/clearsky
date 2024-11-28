@@ -4,11 +4,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/gdanko/clearsky/globals"
 )
 
 func FetchUrl(url string) (body []byte, err error) {
-	// Make debug
-	fmt.Println(url)
+	if globals.GetDebugFlag() {
+		fmt.Println(url)
+	}
+
 	resp, err := http.Get(url)
 	if err != nil {
 		return []byte{}, err
