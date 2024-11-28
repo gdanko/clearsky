@@ -1,107 +1,91 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/gdanko/clearsky/globals"
 	"github.com/gdanko/clearsky/pkg/api"
 	"github.com/gdanko/clearsky/util"
-	"github.com/kr/pretty"
+	"github.com/markkurossi/tabulate"
 	"github.com/spf13/cobra"
 )
 
 var (
 	blocksCmd = &cobra.Command{
 		Use:          "blocks",
-		Short:        "Display the number of users blocking --account",
-		Long:         "Display the number of users blocking --account",
-		PreRun:       blocksPreRunCmd,
-		Run:          blocksRunCmd,
+		Short:        "Display the number of users blocking --account.",
+		Long:         "Display the number of users blocking --account.",
+		PreRunE:      blocksPreRunCmd,
+		RunE:         blocksRunCmd,
 		SilenceUsage: true,
 	}
 )
 
 func init() {
-	blocksCmd.PersistentFlags().StringVarP(&accountName, "account", "a", "", "The BlueSky account name.")
-	blocksCmd.PersistentFlags().BoolVarP(&showBlockingUsers, "blocking-users", "u", false, "Gather the list of blocking users' names (expensive).")
+	GetBlocksFlags(blocksCmd)
 	rootCmd.AddCommand(blocksCmd)
 }
 
-func blocksPreRunCmd(cmd *cobra.Command, args []string) {
-	userId, err = api.GetUserID(accountName)
-	if err != nil {
-		panic(err)
+func blocksPreRunCmd(cmd *cobra.Command, args []string) error {
+	globals.SetDebugFlag(debugFlag)
+	if accountName != "" {
+		displayName, userId, err = api.GetUserID(accountName)
+		if err != nil {
+			return err
+		}
+	} else {
+		fmt.Println("The required --account flag is missing")
+		cmd.Help()
+		os.Exit(1)
 	}
+	return nil
 }
 
-func blocksRunCmd(cmd *cobra.Command, args []string) {
+func blocksRunCmd(cmd *cobra.Command, args []string) error {
 	var (
-		batchOperationTimeout = 60
-		blockListOutput       globals.BlockListOutput
-		blockListPage         globals.BlockListPage
-		body                  []byte
-		chunk                 []globals.BlockingUser
-		chunkSize             = 35
-		divided               [][]globals.BlockingUser
-		i                     int
-		maxPages              = 1000
-		newBlockListOutput    globals.BlockListOutput
-		url                   string
+		blockListOutput    globals.BlockListOutput
+		chunk              []globals.BlockingUser
+		divided            [][]globals.BlockingUser
+		err                error
+		totalRecords       int
+		newBlockListOutput globals.BlockListOutput
 	)
-	url = fmt.Sprintf("https://api.clearsky.services/api/v1/anon/single-blocklist/%s", userId)
-	body, err = api.FetchUrl(url)
+	blockListOutput, err = api.GetBlockingUsersList(userId)
 	if err != nil {
-		panic(err)
-	}
-
-	blockListPage = globals.BlockListPage{}
-	err = json.Unmarshal(body, &blockListPage)
-	if err != nil {
-		panic(err)
-	}
-	if len(blockListPage.Data.Blocklist) > 0 {
-		blockListOutput.Items = append(blockListOutput.Items, blockListPage.Data.Blocklist...)
-	} else {
-		panic(err)
-	}
-
-	// Now we cycle through /2, /3, etc until there are no more
-	if len(blockListOutput.Items) >= 100 {
-		for i := 2; i <= maxPages; i++ {
-			url = fmt.Sprintf("https://api.clearsky.services/api/v1/anon/single-blocklist/%s/%d", userId, i)
-			body, err = api.FetchUrl(url)
-			if err != nil {
-				panic(err)
-			}
-			blockListPage = globals.BlockListPage{}
-			err = json.Unmarshal(body, &blockListPage)
-			if err != nil {
-				panic(err)
-			}
-			if len(blockListPage.Data.Blocklist) > 0 {
-				blockListOutput.Items = append(blockListOutput.Items, blockListPage.Data.Blocklist...)
-			} else {
-				break
-			}
-		}
+		return err
 	}
 
 	// https://medium.com/insiderengineering/concurrent-http-requests-in-golang-best-practices-and-techniques-f667e5a19dea
-	// blockListOutput.Items = blockListOutput.Items[0:100]
-	fmt.Println(len(blockListOutput.Items))
+	totalRecords = len(blockListOutput.Items)
+	if listMaxResults < totalRecords {
+		blockListOutput.Items = blockListOutput.Items[0:listMaxResults]
+	}
 	if showBlockingUsers {
-		divided = util.SliceChunker(blockListOutput.Items, chunkSize)
-		for i, chunk = range divided {
-			fmt.Printf("Chunk %d\n", i)
+		alignment := tabulate.ML
+		tab := tabulate.New(
+			tabulate.Unicode,
+		)
+		tab.Header("id").SetAlign(alignment)
+		tab.Header("handle").SetAlign(alignment)
+		tab.Header("name").SetAlign(alignment)
+		divided = util.SliceChunker(blockListOutput.Items, batchChunkSize)
+		for _, chunk = range divided {
 			api.ExpandBlockListUsers(&chunk, batchOperationTimeout)
 			newBlockListOutput.Items = append(newBlockListOutput.Items, chunk...)
-			// fmt.Printf("Sleeping for %d seconds\n", sleepSeconds)
-			// time.Sleep(time.Duration(sleepSeconds) * time.Second)
 		}
+		for _, item := range newBlockListOutput.Items {
+			row := tab.Row()
+			row.Column(item.DID)
+			row.Column(item.Username)
+			row.Column(item.DisplayName)
+		}
+		tab.Print(os.Stdout)
 	}
-	newBlockListOutput.Count = len(newBlockListOutput.Items)
-	pretty.Println(newBlockListOutput.Items)
-	fmt.Printf("%s is currently being blocked by %d users\n", accountName, newBlockListOutput.Count)
+	if listMaxResults < totalRecords {
+		fmt.Printf("Results limited to %d entries by use of --limit.\n", listMaxResults)
+	}
+	fmt.Printf("%s (%s) is currently being blocked by %d users\n", accountName, displayName, len(blockListOutput.Items))
 
+	return nil
 }
