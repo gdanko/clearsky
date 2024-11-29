@@ -24,7 +24,7 @@ func GetPersistenFlags(cmd *cobra.Command) {
 
 func getBlocksAndListsFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&accountName, "account", "a", "", "The BlueSky account name.")
-	cmd.Flags().IntVarP(&listMaxResults, "limit", "l", 9999999999, "Limit the results to --limit - for testing.")
+	// cmd.Flags().IntVarP(&listMaxResults, "limit", "l", 9999999999, "Limit the results to --limit - for testing.")
 	cmd.Flags().IntVarP(&batchOperationTimeout, "timeout", "t", 60, "When making batched http requests, specify the timeout in seconds.")
 	cmd.Flags().IntVarP(&batchChunkSize, "chunk-size", "c", 20, "When making batched http requests, specify the chunk size.")
 }
