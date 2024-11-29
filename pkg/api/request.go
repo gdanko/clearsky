@@ -8,7 +8,7 @@ import (
 )
 
 func FetchUrl(url string, logger *logrus.Logger) (body []byte, err error) {
-	logger.Debug(url)
+	logger.Debugf("Fetching %s", url)
 	resp, err := http.Get(url)
 	if err != nil {
 		return []byte{}, err
