@@ -46,48 +46,33 @@ func blocksPreRunCmd(cmd *cobra.Command, args []string) error {
 
 func blocksRunCmd(cmd *cobra.Command, args []string) error {
 	var (
-		blockListOutput    globals.BlockListOutput
-		chunk              []globals.BlockingUser
-		divided            [][]globals.BlockingUser
-		err                error
-		totalRecords       int
-		newBlockListOutput globals.BlockListOutput
+		blockingList map[string]globals.BlockingUser
+		err          error
 	)
-	blockListOutput, err = api.GetBlockingUsersList(userId, logger)
+
+	blockingList, err = api.GetBlockingUsersList(userId, batchChunkSize, batchOperationTimeout, logger)
 	if err != nil {
 		return err
 	}
 
-	// https://medium.com/insiderengineering/concurrent-http-requests-in-golang-best-practices-and-techniques-f667e5a19dea
-	totalRecords = len(blockListOutput.Items)
-	if listMaxResults < totalRecords {
-		blockListOutput.Items = blockListOutput.Items[0:listMaxResults]
-	}
 	if showBlockingUsers {
 		alignment := tabulate.ML
 		tab := tabulate.New(
 			tabulate.Unicode,
 		)
-		tab.Header("id").SetAlign(alignment)
-		tab.Header("handle").SetAlign(alignment)
-		tab.Header("name").SetAlign(alignment)
-		divided = util.SliceChunker(blockListOutput.Items, batchChunkSize)
-		for _, chunk = range divided {
-			api.ExpandBlockListUsers(&chunk, batchOperationTimeout, logger)
-			newBlockListOutput.Items = append(newBlockListOutput.Items, chunk...)
-		}
-		for _, item := range newBlockListOutput.Items {
+		tab.Header("DID").SetAlign(alignment)
+		tab.Header("Handle").SetAlign(alignment)
+		tab.Header("Display Name").SetAlign(alignment)
+
+		for _, item := range blockingList {
 			row := tab.Row()
 			row.Column(item.DID)
 			row.Column(item.Username)
-			row.Column(item.DisplayName)
+			row.Column(util.StripNonPrintable(item.DisplayName))
 		}
 		tab.Print(os.Stdout)
 	}
-	if listMaxResults < totalRecords {
-		fmt.Printf("Results limited to %d entries by use of --limit.\n", listMaxResults)
-	}
-	fmt.Printf("%s (%s) is currently being blocked by %d users\n", accountName, displayName, len(blockListOutput.Items))
+	fmt.Printf("%s (%s) is currently being blocked by %d users\n", accountName, displayName, len(blockingList))
 
 	return nil
 }
