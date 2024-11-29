@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"database/sql"
+
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -9,6 +11,7 @@ var (
 	accountName           string
 	batchOperationTimeout int
 	batchChunkSize        int
+	db                    *sql.DB
 	debugFlag             bool
 	defaultLogLevel       = "info"
 	err                   error
@@ -30,6 +33,7 @@ var (
 	showListNames     bool
 	displayName       string
 	userId            string
+	versionFull       bool
 	rootCmd           = &cobra.Command{
 		Use:   "clearsky",
 		Short: "clearsky is a command line interface for the clearsky.services API.",
