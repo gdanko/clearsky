@@ -32,22 +32,26 @@ type UserDid struct {
 
 // Block list structs
 type BlockingUser struct {
-	BlockedDate    string `json:"blocked_date"`
-	DID            string `json:"did"`
-	Status         string `json:"status"`
-	Username       string `json:"username"`
-	DisplayName    string `json:"displayName"`
-	Description    string `json:"description"`
-	Banner         string `json:"banner"`
-	FollowsCount   int    `json:"followsCount"`
-	FollowersCount int    `json:"followersCount"`
-	Posts          int    `json:"postsCount"`
+	Banner         string             `json:"banner"`
+	BlockedDate    string             `json:"blocked_date"`
+	Description    string             `json:"description"`
+	DID            string             `json:"did"`
+	DisplayName    string             `json:"displayName"`
+	Error          string             `json:"error"`
+	FollowersCount int                `json:"followersCount"`
+	FollowsCount   int                `json:"followsCount"`
+	Labels         []BlueSkyUserLabel `json:"labels"`
+	Message        string             `json:"message"`
+	PinnedPost     BlueSkyPinnedPost  `json:"pinnedPost"`
+	Posts          int                `json:"postsCount"`
+	Status         string             `json:"status"`
+	Username       string             `json:"username"`
 }
 
 type BlockingUsers struct {
 	Blocklist []BlockingUser `json:"blocklist"`
+	Pages     int            `json:"pages"`
 	ItemCount int
-	Pages     int `json:"pages"`
 }
 
 type BlockListPage struct {
@@ -61,29 +65,33 @@ type BlockListOutput struct {
 	Count int            `json:"count"`
 }
 
+type BlueSkyPinnedPost struct {
+	CID string `json:"cid"`
+	URI string `json:"uri"`
+}
+
+type BlueSkyUserLabel struct {
+	SRC string `json:"src"`
+	URI string `json:"url"`
+	CID string `json:"cid"`
+	VAL string `json:"val"`
+	CTS string `json:"cts"`
+}
+
 // BlueSky user block
 type BlueSkyUser struct {
-	DID            string `json:"did"`
-	Handle         string `json:"handle"`
-	DisplayName    string `json:"displayName"`
-	Description    string `json:"description"`
-	Banner         string `json:"banner"`
-	FollowsCount   int    `json:"followsCount"`
-	FollowersCount int    `json:"followersCount"`
-	Posts          int    `json:"postsCount"`
-}
-
-// ClearSky user block
-type ClearSkyUserObject struct {
-	AvatarUrl        string `json:"avatar_url"`
-	HandleIdentifier string `json:"handle_identifier"`
-	Handle           string `json:"identifier"`
-	PDS              string `json:"pds"`
-	UserUrl          string `json:"user_url"`
-}
-
-type ClearSkyUser struct {
-	Data ClearSkyUserObject `json:"data"`
+	Banner         string             `json:"banner"`
+	Description    string             `json:"description"`
+	DID            string             `json:"did"`
+	DisplayName    string             `json:"displayName"`
+	Error          string             `json:"error"`
+	FollowersCount int                `json:"followersCount"`
+	FollowsCount   int                `json:"followsCount"`
+	Handle         string             `json:"handle"`
+	Labels         []BlueSkyUserLabel `json:"labels"`
+	Message        string             `json:"message"`
+	PinnedPost     BlueSkyPinnedPost  `json:"pinnedPost"`
+	Posts          int                `json:"postsCount"`
 }
 
 // Concurrent worker job
