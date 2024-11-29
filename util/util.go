@@ -2,16 +2,16 @@ package util
 
 import (
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 
-	"github.com/gdanko/clearsky/globals"
 	"github.com/sirupsen/logrus"
 	prefixed "github.com/x-cray/logrus-prefixed-formatter"
 )
 
 // Take the list of blocking users and split them into chunks
-func SliceChunker(input []globals.BlockingUser, chunkSize int) (output [][]globals.BlockingUser) {
+func SliceChunker(input []string, chunkSize int) (output [][]string) {
 	for i := 0; i < len(input); i += chunkSize {
 		end := i + chunkSize
 		if end > len(input) {
@@ -53,4 +53,9 @@ func ConfigureLogger(logLevel logrus.Level, nocolorFlag bool) (logger *logrus.Lo
 	logger.SetLevel(logLevel)
 
 	return logger
+}
+
+func StripNonPrintable(s string) string {
+	re, _ := regexp.Compile(`[^\x00-\x7F]+`)
+	return re.ReplaceAllString(s, "")
 }
