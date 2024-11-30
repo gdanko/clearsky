@@ -8,6 +8,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 	prefixed "github.com/x-cray/logrus-prefixed-formatter"
+	"golang.org/x/text/language"
+	"golang.org/x/text/message"
 )
 
 // Take the list of blocking users and split them into chunks
@@ -58,4 +60,9 @@ func ConfigureLogger(logLevel logrus.Level, nocolorFlag bool) (logger *logrus.Lo
 func StripNonPrintable(s string) string {
 	re, _ := regexp.Compile(`[^\x00-\x7F]+`)
 	return re.ReplaceAllString(s, "")
+}
+
+func AddCommas(num int) (formatted string) {
+	p := message.NewPrinter(language.English)
+	return p.Sprintf("%d", num)
 }
