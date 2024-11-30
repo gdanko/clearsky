@@ -153,7 +153,7 @@ func processBlockingUsersList(blockingList *map[string]globals.BlockingUser, bat
 	return nil
 }
 
-func GetBlockingUsersList(userId string, batchOperationTimeout int, listMaxResults int, logger *logrus.Logger) (blockingList map[string]globals.BlockingUser, err error) {
+func GetBlockingUsersList(userId string, showBlockingUsers bool, batchOperationTimeout int, listMaxResults int, logger *logrus.Logger) (blockingList map[string]globals.BlockingUser, err error) {
 	var (
 		blockingListAll     = map[string]globals.BlockingUser{}
 		blockListPage       globals.BlockListPage
@@ -202,24 +202,27 @@ func GetBlockingUsersList(userId string, batchOperationTimeout int, listMaxResul
 		}
 	}
 
-	totalRecords = len(blockingListAll)
-	if listMaxResults < totalRecords {
-		logger.Debugf("Limiting the number of records to %d because the --limit flag was used", listMaxResults)
-		limitedBlockingList = make(map[string]globals.BlockingUser)
-		for key, value := range blockingListAll {
-			limitedBlockingList[key] = value
-			if len(limitedBlockingList) == listMaxResults {
-				blockingList = limitedBlockingList
-				break
+	if showBlockingUsers {
+		totalRecords = len(blockingListAll)
+		if listMaxResults < totalRecords {
+			logger.Debugf("Limiting the number of records to %d because the --limit flag was used", listMaxResults)
+			limitedBlockingList = make(map[string]globals.BlockingUser)
+			for key, value := range blockingListAll {
+				limitedBlockingList[key] = value
+				if len(limitedBlockingList) == listMaxResults {
+					blockingList = limitedBlockingList
+					break
+				}
 			}
+		} else {
+			blockingList = blockingListAll
 		}
-	} else {
-		blockingList = blockingListAll
-	}
 
-	err = processBlockingUsersList(&blockingList, batchOperationTimeout, logger)
-	if err != nil {
-		return blockingList, err
+		err = processBlockingUsersList(&blockingList, batchOperationTimeout, logger)
+		if err != nil {
+			return blockingList, err
+		}
+		return blockingList, nil
 	}
-	return blockingList, nil
+	return blockingListAll, nil
 }
