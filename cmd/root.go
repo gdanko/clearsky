@@ -10,7 +10,6 @@ import (
 var (
 	accountName           string
 	batchOperationTimeout int
-	batchChunkSize        int
 	db                    *sql.DB
 	debugFlag             bool
 	defaultLogLevel       = "info"
