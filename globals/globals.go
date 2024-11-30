@@ -40,12 +40,12 @@ type BlockingUser struct {
 	Error          string             `json:"error"`
 	FollowersCount int                `json:"followersCount"`
 	FollowsCount   int                `json:"followsCount"`
+	Handle         string             `json:"username"`
 	Labels         []BlueSkyUserLabel `json:"labels"`
 	Message        string             `json:"message"`
 	PinnedPost     BlueSkyPinnedPost  `json:"pinnedPost"`
 	Posts          int                `json:"postsCount"`
 	Status         string             `json:"status"`
-	Username       string             `json:"username"`
 }
 
 type BlockingUsers struct {
@@ -92,6 +92,11 @@ type BlueSkyUser struct {
 	Message        string             `json:"message"`
 	PinnedPost     BlueSkyPinnedPost  `json:"pinnedPost"`
 	Posts          int                `json:"postsCount"`
+}
+
+// List of users via https://public.api.bsky.app/xrpc/app.bsky.actor.getProfiles
+type BlueSkyUsers struct {
+	Profiles []BlueSkyUser `json:"profiles"`
 }
 
 // Concurrent worker job
