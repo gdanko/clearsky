@@ -12,44 +12,11 @@ import (
 
 	"github.com/gdanko/clearsky/globals"
 	"github.com/gdanko/clearsky/util"
+	"github.com/kr/pretty"
 	"github.com/sirupsen/logrus"
 	"github.com/useinsider/go-pkg/insrequester"
 	// "golang.org/x/sync/errgroup"
 )
-
-func GetUserID(accountName string, logger *logrus.Logger) (displayName string, userId string, err error) {
-	var (
-		body []byte
-		url  string
-	)
-	url = fmt.Sprintf("https://api.clearsky.services/api/v1/anon/get-did/%s", accountName)
-	body, err = FetchUrl(url, logger)
-	if err != nil {
-		return displayName, userId, err
-	}
-
-	getDid := globals.UserDid{}
-	err = json.Unmarshal(body, &getDid)
-	if err != nil {
-		return displayName, userId, err
-	}
-	userId = getDid.Data.DidIdentifier
-
-	url = fmt.Sprintf("https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=%s", (userId))
-	body, err = FetchUrl(url, logger)
-	if err != nil {
-		return displayName, userId, err
-	}
-
-	userInfo := globals.BlueSkyUser{}
-	err = json.Unmarshal(body, &userInfo)
-	if err != nil {
-		return displayName, userId, err
-	}
-	displayName = userInfo.DisplayName
-
-	return displayName, userId, nil
-}
 
 // https://medium.com/insiderengineering/concurrent-http-requests-in-golang-best-practices-and-techniques-f667e5a19dea
 func worker(requester *insrequester.Request, jobs <-chan globals.Job, results chan<- *http.Response, wg *sync.WaitGroup, logger *logrus.Logger) {
@@ -167,7 +134,7 @@ func GetBlockedByUsersList(userId string, showBlockedByUsers bool, batchOperatio
 	blockingListAll = make(map[string]globals.BlockingUser)
 
 	url = fmt.Sprintf("https://api.clearsky.services/api/v1/anon/single-blocklist/%s", userId)
-	body, err = FetchUrl(url, logger)
+	body, err = FetchUrl("GET", url, logger, nil)
 	if err != nil {
 		return blockingList, err
 	}
@@ -183,7 +150,7 @@ func GetBlockedByUsersList(userId string, showBlockedByUsers bool, batchOperatio
 	if len(blockedByListPage.Data.Blocklist) >= 100 {
 		for i := 2; i <= maxPages; i++ {
 			url = fmt.Sprintf("https://api.clearsky.services/api/v1/anon/single-blocklist/%s/%d", userId, i)
-			body, err = FetchUrl(url, logger)
+			body, err = FetchUrl("GET", url, logger, nil)
 			if err != nil {
 				return blockingList, err
 			}
@@ -228,6 +195,8 @@ func GetBlockedByUsersList(userId string, showBlockedByUsers bool, batchOperatio
 }
 
 func GetBlockedUsersList(userId string, showBlockedUsers bool, batchOperationTimeout int, listMaxResults int, logger *logrus.Logger) (blockedList map[string]globals.BlockingUser, err error) {
+	pretty.Println(globals.GetCredentials())
+	os.Exit(0)
 	var (
 		blockedListAll     = map[string]globals.BlockingUser{}
 		blockingListPage   globals.BlockingListPage
@@ -244,7 +213,7 @@ func GetBlockedUsersList(userId string, showBlockedUsers bool, batchOperationTim
 	blockedListAll = make(map[string]globals.BlockingUser)
 
 	url = fmt.Sprintf("https://plc.directory/%s", userId)
-	body, err = FetchUrl(url, logger)
+	body, err = FetchUrl("GET", url, logger, nil)
 	if err != nil {
 		return blockedList, err
 	}
@@ -256,7 +225,7 @@ func GetBlockedUsersList(userId string, showBlockedUsers bool, batchOperationTim
 	serviceEndpoint = plcDirectoryEntry.Service[0].ServiceEndpoint
 	for {
 		url = fmt.Sprintf("%s/xrpc/com.atproto.repo.listRecords?repo=%s&limit=%d&collection=app.bsky.graph.block&cursor=%s", serviceEndpoint, userId, listRecordsLimit, blockPageCursor)
-		body, err = FetchUrl(url, logger)
+		body, err = FetchUrl("GET", url, logger, nil)
 		if err != nil {
 			return blockedList, err
 		}
