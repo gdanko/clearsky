@@ -36,8 +36,8 @@ var (
 	versionFull        bool
 	rootCmd            = &cobra.Command{
 		Use:   "clearsky",
-		Short: "clearsky is a command line interface for the clearsky.services API.",
-		Long:  "clearsky is a command line interface for the clearsky.services API.",
+		Short: "clearsky is a command line interface for the clearsky.services API. Written by Juicy Sharts (@juicysharts.bsky.social)",
+		Long:  "clearsky is a command line interface for the clearsky.services API. Written by Juicy Sharts (@juicysharts.bsky.social)",
 	}
 )
 
