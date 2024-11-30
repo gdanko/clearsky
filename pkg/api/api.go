@@ -132,11 +132,8 @@ func processUsersList(userList *map[string]globals.BlockingUser, batchOperationT
 			}
 
 			for _, blueSkyUser = range usersList.Profiles {
-				// pretty.Println(blueSkyUser)
-
 				did = blueSkyUser.DID
 				blockingUser = (*userList)[did]
-				// pretty.Println(blockingUser)
 
 				blockingUser.Banner = blueSkyUser.Banner
 				blockingUser.DisplayName = blueSkyUser.DisplayName
@@ -150,9 +147,6 @@ func processUsersList(userList *map[string]globals.BlockingUser, batchOperationT
 				blockingUser.Posts = blueSkyUser.Posts
 
 				(*userList)[did] = blockingUser
-				// pretty.Println((*userList)[did])
-				// os.Exit(0)
-
 			}
 		}
 	}
