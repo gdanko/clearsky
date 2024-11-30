@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,7 +22,6 @@ func GetUserID(accountName string, logger *logrus.Logger) (displayName string, u
 		body []byte
 		url  string
 	)
-	// Get userId from handle
 	url = fmt.Sprintf("https://api.clearsky.services/api/v1/anon/get-did/%s", accountName)
 	body, err = FetchUrl(url, logger)
 	if err != nil {
@@ -35,7 +35,6 @@ func GetUserID(accountName string, logger *logrus.Logger) (displayName string, u
 	}
 	userId = getDid.Data.DidIdentifier
 
-	// Get displayName from userId
 	url = fmt.Sprintf("https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=%s", (userId))
 	body, err = FetchUrl(url, logger)
 	if err != nil {
@@ -52,6 +51,7 @@ func GetUserID(accountName string, logger *logrus.Logger) (displayName string, u
 	return displayName, userId, nil
 }
 
+// https://medium.com/insiderengineering/concurrent-http-requests-in-golang-best-practices-and-techniques-f667e5a19dea
 func worker(requester *insrequester.Request, jobs <-chan globals.Job, results chan<- *http.Response, wg *sync.WaitGroup, logger *logrus.Logger) {
 	for job := range jobs {
 		logger.Debugf("Fetching %s", job.URL)
@@ -64,34 +64,59 @@ func worker(requester *insrequester.Request, jobs <-chan globals.Job, results ch
 	}
 }
 
-func ExpandBlockListUsers(ids []string, batchOperationTimeout int, logger *logrus.Logger) (blockListUsers []globals.BlueSkyUser, err error) {
-	// https://medium.com/insiderengineering/concurrent-http-requests-in-golang-best-practices-and-techniques-f667e5a19dea
+func processBlockingUsersList(blockingList *map[string]globals.BlockingUser, batchOperationTimeout int, logger *logrus.Logger) (err error) {
 	var (
-		id          string
-		userObject  globals.BlueSkyUser
-		url         string
-		requester   *insrequester.Request
-		workerCount = 100
-		wg          sync.WaitGroup
+		batchChunkSize = 25
+		blockingUser   globals.BlockingUser
+		blueSkyUser    globals.BlueSkyUser
+		chunk          []string
+		did            string
+		didList        []string
+		divided        = [][]string{}
+		i              int
+		requester      *insrequester.Request
+		url            string
+		urls           = []string{}
+		usersList      globals.BlueSkyUsers
+		wg             sync.WaitGroup
+		workerCount    = 100
 	)
+
+	for _, blockingUser := range *blockingList {
+		didList = append(didList, blockingUser.DID)
+	}
+
+	divided = util.SliceChunker(didList, batchChunkSize)
+	for _, chunk = range divided {
+		for i, did = range chunk {
+			chunk[i] = fmt.Sprintf("actors=%s", did)
+		}
+		urls = append(
+			urls,
+			fmt.Sprintf(
+				"https://public.api.bsky.app/xrpc/app.bsky.actor.getProfiles?%s",
+				strings.Join(chunk, "&"),
+			),
+		)
+	}
+
 	requester = insrequester.NewRequester().Load()
 	requester.WithTimeout(time.Duration(batchOperationTimeout) * time.Second)
-	jobs := make(chan globals.Job, len(ids))
-	results := make(chan *http.Response, len(ids))
+	jobs := make(chan globals.Job, len(urls))
+	results := make(chan *http.Response, len(urls))
 
 	for w := 0; w < workerCount; w++ {
 		go worker(requester, jobs, results, &wg, logger)
 	}
 
-	wg.Add(len(ids))
-	for _, id = range ids {
-		url = fmt.Sprintf("https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=%s", id)
+	wg.Add(len(urls))
+	for _, url = range urls {
 		jobs <- globals.Job{URL: url}
 	}
 	close(jobs)
 	wg.Wait()
 
-	for i := 0; i < len(ids); i++ {
+	for i := 0; i < len(urls); i++ {
 		resp := <-results
 		if resp != nil {
 			body, err := io.ReadAll(resp.Body)
@@ -100,71 +125,47 @@ func ExpandBlockListUsers(ids []string, batchOperationTimeout int, logger *logru
 				fmt.Println(string(body))
 				os.Exit(0)
 			}
-
-			userObject = globals.BlueSkyUser{}
-			err = json.Unmarshal(body, &userObject)
+			usersList = globals.BlueSkyUsers{}
+			err = json.Unmarshal(body, &usersList)
 			if err != nil {
-				panic(err)
+				return err
 			}
-			blockListUsers = append(blockListUsers, userObject)
-		}
-	}
-	return blockListUsers, err
-}
 
-func ProcessBlockingUsersList(blockingList *map[string]globals.BlockingUser, blockListPage globals.BlockListPage, batchChunkSize int, batchOperationTimeout int, logger *logrus.Logger) (err error) {
-	var (
-		chunk   []string
-		didSet  []string
-		divided [][]string
-		i       int
-		temp    globals.BlockingUser
-	)
-	for _, blockingUser := range blockListPage.Data.Blocklist {
-		(*blockingList)[blockingUser.DID] = globals.BlockingUser{DID: blockingUser.DID, BlockedDate: blockingUser.BlockedDate}
-		didSet = append(didSet, blockingUser.DID)
-	}
-	divided = util.SliceChunker(didSet, batchChunkSize)
-	for i, chunk = range divided {
-		logger.Debugf("Processing chunk %d of %d", i+1, len(divided))
-		blockListUsers, err := ExpandBlockListUsers(chunk, batchOperationTimeout, logger)
-		if err != nil {
-			return err
-		}
-		for _, blockListUser := range blockListUsers {
-			temp = (*blockingList)[blockListUser.DID]
+			for _, blueSkyUser = range usersList.Profiles {
+				did = blueSkyUser.DID
+				blockingUser = (*blockingList)[did]
 
-			temp.Banner = blockListUser.Banner
-			temp.Description = blockListUser.Description
-			temp.DisplayName = blockListUser.DisplayName
-			temp.Error = blockListUser.Error
-			temp.FollowersCount = blockListUser.FollowersCount
-			temp.FollowsCount = blockListUser.FollowsCount
-			temp.Labels = blockListUser.Labels
-			temp.Message = blockListUser.Message
-			temp.PinnedPost = blockListUser.PinnedPost
-			temp.Posts = blockListUser.Posts
-			temp.Username = blockListUser.Handle
+				blockingUser.Banner = blueSkyUser.Banner
+				blockingUser.DisplayName = blueSkyUser.DisplayName
+				blockingUser.Error = blueSkyUser.Error
+				blockingUser.FollowersCount = blueSkyUser.FollowersCount
+				blockingUser.FollowsCount = blueSkyUser.FollowsCount
+				blockingUser.Handle = blueSkyUser.Handle
+				blockingUser.Labels = blueSkyUser.Labels
+				blockingUser.Message = blueSkyUser.Message
+				blockingUser.PinnedPost = blueSkyUser.PinnedPost
+				blockingUser.Posts = blueSkyUser.Posts
 
-			(*blockingList)[blockListUser.DID] = temp
+				(*blockingList)[did] = blockingUser
+			}
 		}
 	}
 	return nil
 }
 
-func GetBlockingUsersList(userId string, batchChunkSize int, batchOperationTimeout int, logger *logrus.Logger) (blockingList map[string]globals.BlockingUser, err error) {
-	// Get the user info BEFORE inserting into the database...
-	// When you have each batch of 100, go get their details
+func GetBlockingUsersList(userId string, batchOperationTimeout int, listMaxResults int, logger *logrus.Logger) (blockingList map[string]globals.BlockingUser, err error) {
 	var (
-		blockListPage globals.BlockListPage
-		body          []byte
-		maxPages      = 3
-		url           string
+		blockingListAll     = map[string]globals.BlockingUser{}
+		blockListPage       globals.BlockListPage
+		body                []byte
+		limitedBlockingList = map[string]globals.BlockingUser{}
+		maxPages            = 1000
+		totalRecords        int
+		url                 string
 	)
+	blockingList = map[string]globals.BlockingUser{}
+	blockingListAll = make(map[string]globals.BlockingUser)
 
-	blockingList = make(map[string]globals.BlockingUser)
-
-	// https://api.clearsky.services/api/v1/anon/single-blocklist/did:plc:ccskhvd467uwdrxpwaudnbni
 	url = fmt.Sprintf("https://api.clearsky.services/api/v1/anon/single-blocklist/%s", userId)
 	body, err = FetchUrl(url, logger)
 	if err != nil {
@@ -173,14 +174,13 @@ func GetBlockingUsersList(userId string, batchChunkSize int, batchOperationTimeo
 	blockListPage = globals.BlockListPage{}
 	err = json.Unmarshal(body, &blockListPage)
 	if err != nil {
-		return blockingList, err
+		return blockingList, nil
 	}
-	err = ProcessBlockingUsersList(&blockingList, blockListPage, batchChunkSize, batchOperationTimeout, logger)
-	if err != nil {
-		return blockingList, err
+	for _, blockingUser := range blockListPage.Data.Blocklist {
+		blockingListAll[blockingUser.DID] = blockingUser
 	}
 
-	if len(blockingList) >= 100 {
+	if len(blockListPage.Data.Blocklist) >= 100 {
 		for i := 2; i <= maxPages; i++ {
 			url = fmt.Sprintf("https://api.clearsky.services/api/v1/anon/single-blocklist/%s/%d", userId, i)
 			body, err = FetchUrl(url, logger)
@@ -190,13 +190,36 @@ func GetBlockingUsersList(userId string, batchChunkSize int, batchOperationTimeo
 			blockListPage = globals.BlockListPage{}
 			err = json.Unmarshal(body, &blockListPage)
 			if err != nil {
-				return blockingList, err
+				return blockingList, nil
 			}
-			err = ProcessBlockingUsersList(&blockingList, blockListPage, batchChunkSize, batchOperationTimeout, logger)
-			if err != nil {
-				return blockingList, err
+			if len(blockListPage.Data.Blocklist) > 0 {
+				for _, blockingUser := range blockListPage.Data.Blocklist {
+					blockingListAll[blockingUser.DID] = blockingUser
+				}
+			} else {
+				break
 			}
 		}
+	}
+
+	totalRecords = len(blockingListAll)
+	if listMaxResults < totalRecords {
+		logger.Debugf("Limiting the number of records to %d because the --limit flag was used", listMaxResults)
+		limitedBlockingList = make(map[string]globals.BlockingUser)
+		for key, value := range blockingListAll {
+			limitedBlockingList[key] = value
+			if len(limitedBlockingList) == listMaxResults {
+				blockingList = limitedBlockingList
+				break
+			}
+		}
+	} else {
+		blockingList = blockingListAll
+	}
+
+	err = processBlockingUsersList(&blockingList, batchOperationTimeout, logger)
+	if err != nil {
+		return blockingList, err
 	}
 	return blockingList, nil
 }
