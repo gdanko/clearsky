@@ -2,13 +2,28 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"os"
 
 	"github.com/gdanko/clearsky/globals"
 	"github.com/gdanko/clearsky/util"
 	"github.com/sirupsen/logrus"
 )
 
+func readCredentials() (blueSkyHandle, blueSkyPassword string, err error) {
+	blueSkyHandle = os.Getenv("BLUESKY_HANDLE")
+	blueSkyPassword = os.Getenv("BLUESKY_PASSWORD")
+	if blueSkyHandle == "" {
+		return blueSkyHandle, blueSkyPassword, errors.New("Please export BLUESKY_HANDLE")
+	}
+	if blueSkyPassword == "" {
+		return blueSkyHandle, blueSkyPassword, errors.New("Please export BLUESKY_PASSWORD")
+	}
+	return blueSkyHandle, blueSkyPassword, nil
+}
+
+// Read the credentials and store needed bits in a struct
 func Authenticate() (blueSkyCredentials globals.BlueSkyCredentials, err error) {
 	var (
 		body              []byte
@@ -28,7 +43,7 @@ func Authenticate() (blueSkyCredentials globals.BlueSkyCredentials, err error) {
 	logger = util.ConfigureLogger(logrus.DebugLevel, false)
 
 	// Read the credentials first
-	blueSkyHandle, blueSkyPassword, err = util.ReadCredentials()
+	blueSkyHandle, blueSkyPassword, err = readCredentials()
 	if err != nil {
 		panic(err)
 	}
