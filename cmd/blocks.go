@@ -46,28 +46,31 @@ func blocksPreRunCmd(cmd *cobra.Command, args []string) error {
 
 func blocksRunCmd(cmd *cobra.Command, args []string) error {
 	var (
+		alignment    tabulate.Align
 		blockingList map[string]globals.BlockingUser
 		err          error
+		item         globals.BlockingUser
+		row          *tabulate.Row
+		tab          *tabulate.Tabulate
 	)
 
-	blockingList, err = api.GetBlockingUsersList(userId, batchChunkSize, batchOperationTimeout, logger)
+	blockingList, err = api.GetBlockingUsersList(userId, batchOperationTimeout, listMaxResults, logger)
 	if err != nil {
 		return err
 	}
-
 	if showBlockingUsers {
-		alignment := tabulate.ML
-		tab := tabulate.New(
+		alignment = tabulate.ML
+		tab = tabulate.New(
 			tabulate.Unicode,
 		)
 		tab.Header("DID").SetAlign(alignment)
 		tab.Header("Handle").SetAlign(alignment)
 		tab.Header("Display Name").SetAlign(alignment)
 
-		for _, item := range blockingList {
-			row := tab.Row()
+		for _, item = range blockingList {
+			row = tab.Row()
 			row.Column(item.DID)
-			row.Column(item.Username)
+			row.Column(item.Handle)
 			row.Column(util.StripNonPrintable(item.DisplayName))
 		}
 		tab.Print(os.Stdout)
