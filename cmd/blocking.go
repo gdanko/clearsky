@@ -31,12 +31,7 @@ func blockingPreRunCmd(cmd *cobra.Command, args []string) error {
 	logLevel = logLevelMap[logLevelStr]
 	logger = util.ConfigureLogger(logLevel, nocolorFlag)
 
-	if accountName != "" {
-		displayName, userId, err = api.GetUserID(accountName, logger)
-		if err != nil {
-			return err
-		}
-	} else {
+	if accountName == "" {
 		fmt.Println("The required --account flag is missing")
 		cmd.Help()
 		os.Exit(1)
@@ -53,7 +48,6 @@ func blockingRunCmd(cmd *cobra.Command, args []string) error {
 		row         *tabulate.Row
 		tab         *tabulate.Tabulate
 	)
-
 	blockedList, err = api.GetBlockedUsersList(userId, showBlockedUsers, batchOperationTimeout, listMaxResults, logger)
 	if err != nil {
 		return err

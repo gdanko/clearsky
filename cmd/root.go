@@ -3,6 +3,8 @@ package cmd
 import (
 	"database/sql"
 
+	"github.com/gdanko/clearsky/globals"
+	"github.com/gdanko/clearsky/pkg/api"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -10,6 +12,7 @@ import (
 var (
 	accountName           string
 	batchOperationTimeout int
+	blueSkyCredentials    globals.BlueSkyCredentials
 	db                    *sql.DB
 	debugFlag             bool
 	defaultLogLevel       = "info"
@@ -28,6 +31,7 @@ var (
 		"trace": logrus.TraceLevel,
 	}
 	nocolorFlag        bool
+	serviceEndpoint    string
 	showBlockedUsers   bool
 	showBlockedByUsers bool
 	showListNames      bool
@@ -46,5 +50,10 @@ func Execute() error {
 }
 
 func init() {
+	blueSkyCredentials, err = api.Authenticate()
+	if err != nil {
+		panic(err)
+	}
+	globals.SetCredentials(blueSkyCredentials)
 	GetPersistenFlags(rootCmd)
 }

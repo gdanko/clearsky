@@ -31,12 +31,7 @@ func blocksPreRunCmd(cmd *cobra.Command, args []string) error {
 	logLevel = logLevelMap[logLevelStr]
 	logger = util.ConfigureLogger(logLevel, nocolorFlag)
 
-	if accountName != "" {
-		displayName, userId, err = api.GetUserID(accountName, logger)
-		if err != nil {
-			return err
-		}
-	} else {
+	if accountName == "" {
 		fmt.Println("The required --account flag is missing")
 		cmd.Help()
 		os.Exit(1)
