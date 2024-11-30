@@ -1,5 +1,7 @@
 package globals
 
+import "sync"
+
 // Concurrent worker job
 type Job struct {
 	URL string
@@ -33,6 +35,12 @@ type UserData struct {
 
 type UserDid struct {
 	Data UserData `json:"data"`
+}
+
+type BlueSkyCredentials struct {
+	AccessJwtCookie string
+	ServiceEndpoint string
+	UserDid         string
 }
 
 // Block list structs
@@ -96,7 +104,7 @@ type BlueSkyUser struct {
 	Labels         []BlueSkyUserLabel `json:"labels"`
 	Message        string             `json:"message"`
 	PinnedPost     BlueSkyPinnedPost  `json:"pinnedPost"`
-	Posts          int                `json:"postsCount"`
+	Posts          int                `json:"poptsCount"`
 }
 
 // List of users via https://public.api.bsky.app/xrpc/app.bsky.actor.getProfiles
@@ -142,4 +150,41 @@ type BlockingListRecord struct {
 type BlockingListPage struct {
 	Records []BlockingListRecord `json:"records"`
 	Cursor  string               `json:"cursor"`
+}
+
+// bsky.app session document
+type SessionDocument struct {
+	DID             string            `json:"did"`
+	DIDDoc          PlcDirectoryEntry `json:"didDoc"`
+	Handle          string            `json:"handle"`
+	Email           string            `json:"email"`
+	EmailConfirmed  bool              `json:"emailConfirmed"`
+	EmailAuthFactor bool              `json:"emailAuthFactor"`
+	AccessJwt       string            `json:"accessJwt"`
+	RefreshJwt      string            `json:"refreshJwt"`
+	Active          bool              `json:"active"`
+}
+
+// bsky.app credentials
+type Credentials struct {
+	Identifier string `json:"identifier"`
+	Password   string `json:"password"`
+}
+
+var (
+	blueSkyCredentials BlueSkyCredentials
+	mu                 sync.RWMutex
+)
+
+func SetCredentials(x BlueSkyCredentials) {
+	mu.Lock()
+	blueSkyCredentials = x
+	mu.Unlock()
+}
+
+func GetCredentials() (x BlueSkyCredentials) {
+	mu.Lock()
+	x = blueSkyCredentials
+	mu.Unlock()
+	return x
 }
