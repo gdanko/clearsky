@@ -54,7 +54,7 @@ func blocksRunCmd(cmd *cobra.Command, args []string) error {
 		tab          *tabulate.Tabulate
 	)
 
-	blockingList, err = api.GetBlockingUsersList(userId, batchOperationTimeout, listMaxResults, logger)
+	blockingList, err = api.GetBlockingUsersList(userId, showBlockingUsers, batchOperationTimeout, listMaxResults, logger)
 	if err != nil {
 		return err
 	}
@@ -75,7 +75,7 @@ func blocksRunCmd(cmd *cobra.Command, args []string) error {
 		}
 		tab.Print(os.Stdout)
 	}
-	fmt.Printf("%s (%s) is currently being blocked by %d users\n", accountName, displayName, len(blockingList))
+	fmt.Printf("%s (%s) is currently being blocked by %s users\n", accountName, displayName, util.AddCommas(len(blockingList)))
 
 	return nil
 }
