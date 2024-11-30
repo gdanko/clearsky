@@ -27,13 +27,14 @@ var (
 		"debug": logrus.DebugLevel,
 		"trace": logrus.TraceLevel,
 	}
-	nocolorFlag       bool
-	showBlockingUsers bool
-	showListNames     bool
-	displayName       string
-	userId            string
-	versionFull       bool
-	rootCmd           = &cobra.Command{
+	nocolorFlag        bool
+	showBlockedUsers   bool
+	showBlockedByUsers bool
+	showListNames      bool
+	displayName        string
+	userId             string
+	versionFull        bool
+	rootCmd            = &cobra.Command{
 		Use:   "clearsky",
 		Short: "clearsky is a command line interface for the clearsky.services API.",
 		Long:  "clearsky is a command line interface for the clearsky.services API.",

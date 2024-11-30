@@ -3,11 +3,13 @@ module github.com/gdanko/clearsky
 go 1.23.2
 
 require (
+	github.com/kr/pretty v0.1.0
 	github.com/markkurossi/tabulate v0.0.0-20230223130100-d4965869b123
 	github.com/sirupsen/logrus v1.6.0
 	github.com/spf13/cobra v1.8.1
 	github.com/useinsider/go-pkg v0.10.4
 	github.com/x-cray/logrus-prefixed-formatter v0.5.2
+	golang.org/x/text v0.7.0
 )
 
 require (
@@ -17,6 +19,7 @@ require (
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/konsorten/go-windows-terminal-sequences v1.0.3 // indirect
+	github.com/kr/text v0.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.16 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
@@ -30,6 +33,5 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9 // indirect
 	golang.org/x/sys v0.14.0 // indirect
-	golang.org/x/text v0.7.0 // indirect
 	google.golang.org/protobuf v1.26.0 // indirect
 )

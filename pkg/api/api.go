@@ -64,7 +64,7 @@ func worker(requester *insrequester.Request, jobs <-chan globals.Job, results ch
 	}
 }
 
-func processBlockingUsersList(blockingList *map[string]globals.BlockingUser, batchOperationTimeout int, logger *logrus.Logger) (err error) {
+func processUsersList(userList *map[string]globals.BlockingUser, batchOperationTimeout int, logger *logrus.Logger) (err error) {
 	var (
 		batchChunkSize = 25
 		blockingUser   globals.BlockingUser
@@ -82,7 +82,7 @@ func processBlockingUsersList(blockingList *map[string]globals.BlockingUser, bat
 		workerCount    = 100
 	)
 
-	for _, blockingUser := range *blockingList {
+	for _, blockingUser := range *userList {
 		didList = append(didList, blockingUser.DID)
 	}
 
@@ -132,8 +132,11 @@ func processBlockingUsersList(blockingList *map[string]globals.BlockingUser, bat
 			}
 
 			for _, blueSkyUser = range usersList.Profiles {
+				// pretty.Println(blueSkyUser)
+
 				did = blueSkyUser.DID
-				blockingUser = (*blockingList)[did]
+				blockingUser = (*userList)[did]
+				// pretty.Println(blockingUser)
 
 				blockingUser.Banner = blueSkyUser.Banner
 				blockingUser.DisplayName = blueSkyUser.DisplayName
@@ -146,17 +149,20 @@ func processBlockingUsersList(blockingList *map[string]globals.BlockingUser, bat
 				blockingUser.PinnedPost = blueSkyUser.PinnedPost
 				blockingUser.Posts = blueSkyUser.Posts
 
-				(*blockingList)[did] = blockingUser
+				(*userList)[did] = blockingUser
+				// pretty.Println((*userList)[did])
+				// os.Exit(0)
+
 			}
 		}
 	}
 	return nil
 }
 
-func GetBlockingUsersList(userId string, showBlockingUsers bool, batchOperationTimeout int, listMaxResults int, logger *logrus.Logger) (blockingList map[string]globals.BlockingUser, err error) {
+func GetBlockedByUsersList(userId string, showBlockedByUsers bool, batchOperationTimeout int, listMaxResults int, logger *logrus.Logger) (blockingList map[string]globals.BlockingUser, err error) {
 	var (
 		blockingListAll     = map[string]globals.BlockingUser{}
-		blockListPage       globals.BlockListPage
+		blockedByListPage   globals.BlockedByListPage
 		body                []byte
 		limitedBlockingList = map[string]globals.BlockingUser{}
 		maxPages            = 1000
@@ -171,29 +177,29 @@ func GetBlockingUsersList(userId string, showBlockingUsers bool, batchOperationT
 	if err != nil {
 		return blockingList, err
 	}
-	blockListPage = globals.BlockListPage{}
-	err = json.Unmarshal(body, &blockListPage)
+	blockedByListPage = globals.BlockedByListPage{}
+	err = json.Unmarshal(body, &blockedByListPage)
 	if err != nil {
 		return blockingList, nil
 	}
-	for _, blockingUser := range blockListPage.Data.Blocklist {
+	for _, blockingUser := range blockedByListPage.Data.Blocklist {
 		blockingListAll[blockingUser.DID] = blockingUser
 	}
 
-	if len(blockListPage.Data.Blocklist) >= 100 {
+	if len(blockedByListPage.Data.Blocklist) >= 100 {
 		for i := 2; i <= maxPages; i++ {
 			url = fmt.Sprintf("https://api.clearsky.services/api/v1/anon/single-blocklist/%s/%d", userId, i)
 			body, err = FetchUrl(url, logger)
 			if err != nil {
 				return blockingList, err
 			}
-			blockListPage = globals.BlockListPage{}
-			err = json.Unmarshal(body, &blockListPage)
+			blockedByListPage = globals.BlockedByListPage{}
+			err = json.Unmarshal(body, &blockedByListPage)
 			if err != nil {
 				return blockingList, nil
 			}
-			if len(blockListPage.Data.Blocklist) > 0 {
-				for _, blockingUser := range blockListPage.Data.Blocklist {
+			if len(blockedByListPage.Data.Blocklist) > 0 {
+				for _, blockingUser := range blockedByListPage.Data.Blocklist {
 					blockingListAll[blockingUser.DID] = blockingUser
 				}
 			} else {
@@ -202,7 +208,7 @@ func GetBlockingUsersList(userId string, showBlockingUsers bool, batchOperationT
 		}
 	}
 
-	if showBlockingUsers {
+	if showBlockedByUsers {
 		totalRecords = len(blockingListAll)
 		if listMaxResults < totalRecords {
 			logger.Debugf("Limiting the number of records to %d because the --limit flag was used", listMaxResults)
@@ -218,11 +224,84 @@ func GetBlockingUsersList(userId string, showBlockingUsers bool, batchOperationT
 			blockingList = blockingListAll
 		}
 
-		err = processBlockingUsersList(&blockingList, batchOperationTimeout, logger)
+		err = processUsersList(&blockingList, batchOperationTimeout, logger)
 		if err != nil {
 			return blockingList, err
 		}
 		return blockingList, nil
 	}
 	return blockingListAll, nil
+}
+
+func GetBlockedUsersList(userId string, showBlockedUsers bool, batchOperationTimeout int, listMaxResults int, logger *logrus.Logger) (blockedList map[string]globals.BlockingUser, err error) {
+	var (
+		blockedListAll     = map[string]globals.BlockingUser{}
+		blockingListPage   globals.BlockingListPage
+		blockPageCursor    string
+		body               []byte
+		limitedBlockedList = map[string]globals.BlockingUser{}
+		listRecordsLimit   = 100
+		plcDirectoryEntry  globals.PlcDirectoryEntry
+		serviceEndpoint    string
+		totalRecords       int
+		url                string
+	)
+	// blockedList = map[string]globals.BlockingUser{}
+	blockedListAll = make(map[string]globals.BlockingUser)
+
+	url = fmt.Sprintf("https://plc.directory/%s", userId)
+	body, err = FetchUrl(url, logger)
+	if err != nil {
+		return blockedList, err
+	}
+	plcDirectoryEntry = globals.PlcDirectoryEntry{}
+	err = json.Unmarshal(body, &plcDirectoryEntry)
+	if err != nil {
+		return blockedList, nil
+	}
+	serviceEndpoint = plcDirectoryEntry.Service[0].ServiceEndpoint
+	for {
+		url = fmt.Sprintf("%s/xrpc/com.atproto.repo.listRecords?repo=%s&limit=%d&collection=app.bsky.graph.block&cursor=%s", serviceEndpoint, userId, listRecordsLimit, blockPageCursor)
+		body, err = FetchUrl(url, logger)
+		if err != nil {
+			return blockedList, err
+		}
+		blockingListPage = globals.BlockingListPage{}
+		err = json.Unmarshal(body, &blockingListPage)
+		if err != nil {
+			return blockedList, nil
+		}
+		if len(blockingListPage.Records) > 0 {
+			for _, blockingUser := range blockingListPage.Records {
+				blockedListAll[blockingUser.Value.Subject] = globals.BlockingUser{DID: blockingUser.Value.Subject}
+			}
+			blockPageCursor = blockingListPage.Cursor
+		} else {
+			break
+		}
+	}
+
+	if showBlockedUsers {
+		totalRecords = len(blockedListAll)
+		if listMaxResults < totalRecords {
+			logger.Debugf("Limiting the number of records to %d because the --limit flag was used", listMaxResults)
+			limitedBlockedList = make(map[string]globals.BlockingUser)
+			for key, value := range blockedListAll {
+				limitedBlockedList[key] = value
+				if len(limitedBlockedList) == listMaxResults {
+					blockedListAll = limitedBlockedList
+					break
+				}
+			}
+		} else {
+			blockedList = blockedListAll
+		}
+
+		err = processUsersList(&blockedList, batchOperationTimeout, logger)
+		if err != nil {
+			return blockedList, err
+		}
+		return blockedList, nil
+	}
+	return blockedListAll, err
 }

@@ -12,6 +12,11 @@ func GetBlocksFlags(cmd *cobra.Command) {
 	getBlocksFlags(cmd)
 }
 
+func GetBlockingFlags(cmd *cobra.Command) {
+	getBlocksAndListsFlags(cmd)
+	getBlockingFlags(cmd)
+}
+
 func GetListsFlags(cmd *cobra.Command) {
 	getBlocksAndListsFlags(cmd)
 	getListsFlags(cmd)
@@ -28,9 +33,13 @@ func getBlocksAndListsFlags(cmd *cobra.Command) {
 }
 
 func getBlocksFlags(cmd *cobra.Command) {
-	cmd.Flags().BoolVarP(&showBlockingUsers, "blocking-users", "u", false, "Gather the list of blocking users' names (expensive).")
+	cmd.Flags().BoolVarP(&showBlockedByUsers, "blocking-users", "u", false, "Gather the list of blocking users' names (expensive).")
+}
+
+func getBlockingFlags(cmd *cobra.Command) {
+	cmd.Flags().BoolVarP(&showBlockedUsers, "blocked-users", "u", false, "Gather the list of blocked users' names (expensive).")
 }
 
 func getListsFlags(cmd *cobra.Command) {
-	cmd.Flags().BoolVarP(&showBlockingUsers, "list-names", "n", false, "Gather the list of moderated lists' names (expensive).")
+	cmd.Flags().BoolVarP(&showBlockedByUsers, "list-names", "n", false, "Gather the list of moderated lists' names (expensive).")
 }

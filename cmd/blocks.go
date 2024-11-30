@@ -54,11 +54,11 @@ func blocksRunCmd(cmd *cobra.Command, args []string) error {
 		tab          *tabulate.Tabulate
 	)
 
-	blockingList, err = api.GetBlockingUsersList(userId, showBlockingUsers, batchOperationTimeout, listMaxResults, logger)
+	blockingList, err = api.GetBlockedByUsersList(userId, showBlockedByUsers, batchOperationTimeout, listMaxResults, logger)
 	if err != nil {
 		return err
 	}
-	if showBlockingUsers {
+	if showBlockedByUsers {
 		alignment = tabulate.ML
 		tab = tabulate.New(
 			tabulate.Unicode,

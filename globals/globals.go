@@ -1,5 +1,10 @@
 package globals
 
+// Concurrent worker job
+type Job struct {
+	URL string
+}
+
 // User count data
 type CountBlock struct {
 	DisplayName string `json:"displayName"`
@@ -48,19 +53,19 @@ type BlockingUser struct {
 	Status         string             `json:"status"`
 }
 
-type BlockingUsers struct {
+type BlockedByUsers struct {
 	Blocklist []BlockingUser `json:"blocklist"`
 	Pages     int            `json:"pages"`
 	ItemCount int
 }
 
-type BlockListPage struct {
-	Data     BlockingUsers `json:"data"`
-	Identity string        `json:"identity"`
-	Status   bool          `json:"status"`
+type BlockedByListPage struct {
+	Data     BlockedByUsers `json:"data"`
+	Identity string         `json:"identity"`
+	Status   bool           `json:"status"`
 }
 
-type BlockListOutput struct {
+type BlockedByListOutput struct {
 	Items []BlockingUser `json:"items"`
 	Count int            `json:"count"`
 }
@@ -99,7 +104,42 @@ type BlueSkyUsers struct {
 	Profiles []BlueSkyUser `json:"profiles"`
 }
 
-// Concurrent worker job
-type Job struct {
-	URL string
+// PLC directory block
+type PlcService struct {
+	ID              string `json:"id"`
+	Type            string `json:"type"`
+	ServiceEndpoint string `json:"serviceEndpoint"`
+}
+
+type PlcVerificationMethod struct {
+	ID                 string `json:"id"`
+	Type               string `json:"type"`
+	Controller         string `json:"controller"`
+	PublicKeyMultibase string `json:"publicKeyMultibase"`
+}
+
+type PlcDirectoryEntry struct {
+	Context            []string                `json:"@context"`
+	ID                 string                  `json:"id"`
+	AlsoKnownAs        []string                `json:"alsoKnownAs"`
+	VerificationMethod []PlcVerificationMethod `json:"verificationMethod"`
+	Service            []PlcService            `json:"service"`
+}
+
+// Blocking list structs
+type BlockingListValue struct {
+	Type      string `json:"$type"`
+	Subject   string `json:"subject"`
+	CreatedAd string `json:"createdAt"`
+}
+
+type BlockingListRecord struct {
+	URI   string            `json:"uri"`
+	CID   string            `json:"cid"`
+	Value BlockingListValue `json:"value"`
+}
+
+type BlockingListPage struct {
+	Records []BlockingListRecord `json:"records"`
+	Cursor  string               `json:"cursor"`
 }
