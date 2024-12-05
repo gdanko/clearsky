@@ -22,6 +22,16 @@ func GetListsFlags(cmd *cobra.Command) {
 	getListsFlags(cmd)
 }
 
+func GetFollowersFlags(cmd *cobra.Command) {
+	getBlocksAndListsFlags(cmd)
+	getFollowersFlags(cmd)
+}
+
+func GetFollowingFlags(cmd *cobra.Command) {
+	getBlocksAndListsFlags(cmd)
+	getFollowingFlags(cmd)
+}
+
 func GetPersistenFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVar(&logLevelStr, "log", defaultLogLevel, fmt.Sprintf("The log level, one of: %s", util.ReturnLogLevels(logLevelMap)))
 }
@@ -42,4 +52,12 @@ func getBlockingFlags(cmd *cobra.Command) {
 
 func getListsFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVarP(&showBlockedByUsers, "list-names", "n", false, "Gather the list of moderated lists' names (expensive).")
+}
+
+func getFollowersFlags(cmd *cobra.Command) {
+	cmd.Flags().BoolVarP(&showBlockedByUsers, "follower-names", "n", false, "Gather the list of followers' names (expensive).")
+}
+
+func getFollowingFlags(cmd *cobra.Command) {
+	cmd.Flags().BoolVarP(&showBlockedByUsers, "following-names", "n", false, "Gather the list of followed user' names (expensive).")
 }

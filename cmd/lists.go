@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/gdanko/clearsky/pkg/api"
 	"github.com/gdanko/clearsky/util"
 	"github.com/spf13/cobra"
 )
@@ -28,7 +29,13 @@ func listsPreRunCmd(cmd *cobra.Command, args []string) error {
 	logLevel = logLevelMap[logLevelStr]
 	logger = util.ConfigureLogger(logLevel, nocolorFlag)
 
-	if accountName == "" {
+	if accountName != "" {
+		// Get the target's DID
+		targetDid, err = api.GetUserDid(accountName, logger)
+		if err != nil {
+			return err
+		}
+	} else {
 		fmt.Println("The required --account flag is missing")
 		cmd.Help()
 		os.Exit(1)

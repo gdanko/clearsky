@@ -34,7 +34,9 @@ type UserData struct {
 }
 
 type UserDid struct {
-	Data UserData `json:"data"`
+	Error   string   `json:"error"`
+	Message string   `json:"message"`
+	Data    UserData `json:"data"`
 }
 
 type BlueSkyCredentials struct {
@@ -154,6 +156,8 @@ type BlockingListPage struct {
 
 // bsky.app session document
 type SessionDocument struct {
+	Error           string            `json:"error"`
+	Message         string            `json:"message"`
 	DID             string            `json:"did"`
 	DIDDoc          PlcDirectoryEntry `json:"didDoc"`
 	Handle          string            `json:"handle"`

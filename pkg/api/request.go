@@ -8,7 +8,11 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func FetchUrl(method string, url string, logger *logrus.Logger, payload []byte) (body []byte, err error) {
+func FetchUrl(method string, url string, headers map[string]string, payload []byte, logger *logrus.Logger) (body []byte, err error) {
+	var (
+		key   string
+		value string
+	)
 	logger.Debugf("Fetching %s", url)
 	client := &http.Client{}
 
@@ -17,8 +21,8 @@ func FetchUrl(method string, url string, logger *logrus.Logger, payload []byte) 
 		return body, err
 	}
 
-	if payload != nil {
-		req.Header.Set("Content-Type", "application/json")
+	for key, value = range headers {
+		req.Header.Set(key, value)
 	}
 
 	resp, err := client.Do(req)

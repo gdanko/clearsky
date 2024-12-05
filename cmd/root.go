@@ -34,7 +34,10 @@ var (
 	serviceEndpoint    string
 	showBlockedUsers   bool
 	showBlockedByUsers bool
+	showFollowingUsers bool
 	showListNames      bool
+	targetCredentials  globals.BlueSkyCredentials
+	targetDid          string
 	displayName        string
 	userId             string
 	versionFull        bool
@@ -46,14 +49,14 @@ var (
 )
 
 func Execute() error {
+	blueSkyCredentials, err = api.Authenticate()
+	if err != nil {
+		return err
+	}
+	globals.SetCredentials(blueSkyCredentials)
 	return rootCmd.Execute()
 }
 
 func init() {
-	blueSkyCredentials, err = api.Authenticate()
-	if err != nil {
-		panic(err)
-	}
-	globals.SetCredentials(blueSkyCredentials)
 	GetPersistenFlags(rootCmd)
 }

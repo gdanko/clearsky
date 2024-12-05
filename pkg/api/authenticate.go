@@ -1,9 +1,7 @@
 package api
 
 import (
-	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 
 	"github.com/gdanko/clearsky/globals"
@@ -26,17 +24,12 @@ func readCredentials() (blueSkyHandle, blueSkyPassword string, err error) {
 // Read the credentials and store needed bits in a struct
 func Authenticate() (blueSkyCredentials globals.BlueSkyCredentials, err error) {
 	var (
-		body              []byte
 		blueSkyHandle     string
 		blueSkyPassword   string
-		credentials       globals.Credentials
-		jsonBytes         []byte
 		logger            *logrus.Logger
 		plcDirectoryEntry globals.PlcDirectoryEntry
 		serviceEndpoint   string
 		sessionDocument   globals.SessionDocument
-		url               string
-		userDid           globals.UserDid
 		userId            string
 	)
 
@@ -45,49 +38,24 @@ func Authenticate() (blueSkyCredentials globals.BlueSkyCredentials, err error) {
 	// Read the credentials first
 	blueSkyHandle, blueSkyPassword, err = readCredentials()
 	if err != nil {
-		panic(err)
-	}
-
-	// Ge the DID from the handle
-	url = fmt.Sprintf("https://api.clearsky.services/api/v1/anon/get-did/%s", blueSkyHandle)
-	body, err = FetchUrl("GET", url, logger, nil)
-	if err != nil {
 		return blueSkyCredentials, err
 	}
 
-	userDid = globals.UserDid{}
-	err = json.Unmarshal(body, &userDid)
+	// Get the target's DID
+	userId, err = GetUserDid(blueSkyHandle, logger)
 	if err != nil {
 		return blueSkyCredentials, err
 	}
-	userId = userDid.Data.DidIdentifier
 
 	// Get the PLC directory info
-	url = fmt.Sprintf("https://plc.directory/%s", userId)
-	body, err = FetchUrl("GET", url, logger, nil)
-	if err != nil {
-		return blueSkyCredentials, err
-	}
-	plcDirectoryEntry = globals.PlcDirectoryEntry{}
-	err = json.Unmarshal(body, &plcDirectoryEntry)
+	plcDirectoryEntry, err = GetPlcDirectoryInfo(userId, logger)
 	if err != nil {
 		return blueSkyCredentials, err
 	}
 	serviceEndpoint = plcDirectoryEntry.Service[0].ServiceEndpoint
 
-	// Create the session and get the cookie
-	url = fmt.Sprintf("%s/xrpc/com.atproto.server.createSession", serviceEndpoint)
-	credentials = globals.Credentials{Identifier: blueSkyHandle, Password: blueSkyPassword}
-	jsonBytes, err = json.Marshal(credentials)
-	if err != nil {
-		return blueSkyCredentials, err
-	}
-	body, err = FetchUrl("POST", url, logger, jsonBytes)
-	if err != nil {
-		return blueSkyCredentials, err
-	}
-	sessionDocument = globals.SessionDocument{}
-	err = json.Unmarshal(body, &sessionDocument)
+	// Get the BlueSky session document
+	sessionDocument, err = CreateBlueSkySession(blueSkyHandle, blueSkyPassword, serviceEndpoint, logger)
 	if err != nil {
 		return blueSkyCredentials, err
 	}

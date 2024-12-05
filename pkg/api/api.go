@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,11 +13,79 @@ import (
 
 	"github.com/gdanko/clearsky/globals"
 	"github.com/gdanko/clearsky/util"
-	"github.com/kr/pretty"
 	"github.com/sirupsen/logrus"
 	"github.com/useinsider/go-pkg/insrequester"
 	// "golang.org/x/sync/errgroup"
 )
+
+var (
+	body        []byte
+	credentials globals.Credentials
+	headers     map[string]string
+	jsonBytes   []byte
+	userDid     globals.UserDid
+	url         string
+)
+
+// Get the DID from the handle
+func GetUserDid(blueSkyHandle string, logger *logrus.Logger) (targetDid string, err error) {
+	url = fmt.Sprintf("https://api.clearsky.services/api/v1/anon/get-did/%s", blueSkyHandle)
+	body, err = FetchUrl("GET", url, map[string]string{}, nil, logger)
+	if err != nil {
+		return targetDid, err
+	}
+	userDid = globals.UserDid{}
+	err = json.Unmarshal(body, &userDid)
+	if err != nil {
+		return targetDid, err
+	}
+	if userDid.Error != "" {
+		return targetDid, errors.New(fmt.Sprintf("Failed to get DID information for %s: %s", blueSkyHandle, userDid.Error))
+	}
+	return userDid.Data.DidIdentifier, nil
+}
+
+// Get the PLC directory info
+func GetPlcDirectoryInfo(userId string, logger *logrus.Logger) (plcDirectoryEntry globals.PlcDirectoryEntry, err error) {
+	url = fmt.Sprintf("https://plc.directory/%s", userId)
+	body, err = FetchUrl("GET", url, map[string]string{}, nil, logger)
+	if err != nil {
+		return plcDirectoryEntry, err
+	}
+	plcDirectoryEntry = globals.PlcDirectoryEntry{}
+	err = json.Unmarshal(body, &plcDirectoryEntry)
+	if err != nil {
+		return plcDirectoryEntry, err
+	}
+	return plcDirectoryEntry, nil
+}
+
+// Create the session and get the cookie
+func CreateBlueSkySession(blueSkyHandle, blueSkyPassword, serviceEndpoint string, logger *logrus.Logger) (sessionDocument globals.SessionDocument, err error) {
+	url = fmt.Sprintf("%s/xrpc/com.atproto.server.createSession", serviceEndpoint)
+	credentials = globals.Credentials{Identifier: blueSkyHandle, Password: blueSkyPassword}
+	headers = map[string]string{
+		"Content-Type": "application/json",
+	}
+	jsonBytes, err = json.Marshal(credentials)
+	if err != nil {
+		return sessionDocument, err
+	}
+	body, err = FetchUrl("POST", url, headers, jsonBytes, logger)
+	if err != nil {
+		return sessionDocument, err
+	}
+
+	sessionDocument = globals.SessionDocument{}
+	err = json.Unmarshal(body, &sessionDocument)
+	if err != nil {
+		return sessionDocument, err
+	}
+	if sessionDocument.Error != "" && sessionDocument.Message != "" {
+		return sessionDocument, errors.New(sessionDocument.Message)
+	}
+	return sessionDocument, nil
+}
 
 // https://medium.com/insiderengineering/concurrent-http-requests-in-golang-best-practices-and-techniques-f667e5a19dea
 func worker(requester *insrequester.Request, jobs <-chan globals.Job, results chan<- *http.Response, wg *sync.WaitGroup, logger *logrus.Logger) {
@@ -118,153 +187,4 @@ func processUsersList(userList *map[string]globals.BlockingUser, batchOperationT
 		}
 	}
 	return nil
-}
-
-func GetBlockedByUsersList(userId string, showBlockedByUsers bool, batchOperationTimeout int, listMaxResults int, logger *logrus.Logger) (blockingList map[string]globals.BlockingUser, err error) {
-	var (
-		blockingListAll     = map[string]globals.BlockingUser{}
-		blockedByListPage   globals.BlockedByListPage
-		body                []byte
-		limitedBlockingList = map[string]globals.BlockingUser{}
-		maxPages            = 1000
-		totalRecords        int
-		url                 string
-	)
-	blockingList = map[string]globals.BlockingUser{}
-	blockingListAll = make(map[string]globals.BlockingUser)
-
-	url = fmt.Sprintf("https://api.clearsky.services/api/v1/anon/single-blocklist/%s", userId)
-	body, err = FetchUrl("GET", url, logger, nil)
-	if err != nil {
-		return blockingList, err
-	}
-	blockedByListPage = globals.BlockedByListPage{}
-	err = json.Unmarshal(body, &blockedByListPage)
-	if err != nil {
-		return blockingList, nil
-	}
-	for _, blockingUser := range blockedByListPage.Data.Blocklist {
-		blockingListAll[blockingUser.DID] = blockingUser
-	}
-
-	if len(blockedByListPage.Data.Blocklist) >= 100 {
-		for i := 2; i <= maxPages; i++ {
-			url = fmt.Sprintf("https://api.clearsky.services/api/v1/anon/single-blocklist/%s/%d", userId, i)
-			body, err = FetchUrl("GET", url, logger, nil)
-			if err != nil {
-				return blockingList, err
-			}
-			blockedByListPage = globals.BlockedByListPage{}
-			err = json.Unmarshal(body, &blockedByListPage)
-			if err != nil {
-				return blockingList, nil
-			}
-			if len(blockedByListPage.Data.Blocklist) > 0 {
-				for _, blockingUser := range blockedByListPage.Data.Blocklist {
-					blockingListAll[blockingUser.DID] = blockingUser
-				}
-			} else {
-				break
-			}
-		}
-	}
-
-	if showBlockedByUsers {
-		totalRecords = len(blockingListAll)
-		if listMaxResults < totalRecords {
-			logger.Debugf("Limiting the number of records to %d because the --limit flag was used", listMaxResults)
-			limitedBlockingList = make(map[string]globals.BlockingUser)
-			for key, value := range blockingListAll {
-				limitedBlockingList[key] = value
-				if len(limitedBlockingList) == listMaxResults {
-					blockingList = limitedBlockingList
-					break
-				}
-			}
-		} else {
-			blockingList = blockingListAll
-		}
-
-		err = processUsersList(&blockingList, batchOperationTimeout, logger)
-		if err != nil {
-			return blockingList, err
-		}
-		return blockingList, nil
-	}
-	return blockingListAll, nil
-}
-
-func GetBlockedUsersList(userId string, showBlockedUsers bool, batchOperationTimeout int, listMaxResults int, logger *logrus.Logger) (blockedList map[string]globals.BlockingUser, err error) {
-	pretty.Println(globals.GetCredentials())
-	os.Exit(0)
-	var (
-		blockedListAll     = map[string]globals.BlockingUser{}
-		blockingListPage   globals.BlockingListPage
-		blockPageCursor    string
-		body               []byte
-		limitedBlockedList = map[string]globals.BlockingUser{}
-		listRecordsLimit   = 100
-		plcDirectoryEntry  globals.PlcDirectoryEntry
-		serviceEndpoint    string
-		totalRecords       int
-		url                string
-	)
-	// blockedList = map[string]globals.BlockingUser{}
-	blockedListAll = make(map[string]globals.BlockingUser)
-
-	url = fmt.Sprintf("https://plc.directory/%s", userId)
-	body, err = FetchUrl("GET", url, logger, nil)
-	if err != nil {
-		return blockedList, err
-	}
-	plcDirectoryEntry = globals.PlcDirectoryEntry{}
-	err = json.Unmarshal(body, &plcDirectoryEntry)
-	if err != nil {
-		return blockedList, nil
-	}
-	serviceEndpoint = plcDirectoryEntry.Service[0].ServiceEndpoint
-	for {
-		url = fmt.Sprintf("%s/xrpc/com.atproto.repo.listRecords?repo=%s&limit=%d&collection=app.bsky.graph.block&cursor=%s", serviceEndpoint, userId, listRecordsLimit, blockPageCursor)
-		body, err = FetchUrl("GET", url, logger, nil)
-		if err != nil {
-			return blockedList, err
-		}
-		blockingListPage = globals.BlockingListPage{}
-		err = json.Unmarshal(body, &blockingListPage)
-		if err != nil {
-			return blockedList, nil
-		}
-		if len(blockingListPage.Records) > 0 {
-			for _, blockingUser := range blockingListPage.Records {
-				blockedListAll[blockingUser.Value.Subject] = globals.BlockingUser{DID: blockingUser.Value.Subject}
-			}
-			blockPageCursor = blockingListPage.Cursor
-		} else {
-			break
-		}
-	}
-
-	if showBlockedUsers {
-		totalRecords = len(blockedListAll)
-		if listMaxResults < totalRecords {
-			logger.Debugf("Limiting the number of records to %d because the --limit flag was used", listMaxResults)
-			limitedBlockedList = make(map[string]globals.BlockingUser)
-			for key, value := range blockedListAll {
-				limitedBlockedList[key] = value
-				if len(limitedBlockedList) == listMaxResults {
-					blockedListAll = limitedBlockedList
-					break
-				}
-			}
-		} else {
-			blockedList = blockedListAll
-		}
-
-		err = processUsersList(&blockedList, batchOperationTimeout, logger)
-		if err != nil {
-			return blockedList, err
-		}
-		return blockedList, nil
-	}
-	return blockedListAll, err
 }
